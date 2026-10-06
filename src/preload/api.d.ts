@@ -1,4 +1,4 @@
-import type { CaptureSource, RecordingInfo } from '../shared/types'
+import type { CaptureSource, RecordingInfo, RecordingResult } from '../shared/types'
 
 // The small typed API the preload exposes to every renderer as `window.krec`.
 export interface KrecApi {
@@ -14,8 +14,8 @@ export interface KrecApi {
   /** Opens a new recording file on disk. Must resolve before chunks are sent. */
   recordingBegin(info: RecordingInfo): Promise<void>
   recordingChunk(data: ArrayBuffer): void
-  /** Closes the file and resolves with its full path. */
-  recordingEnd(): Promise<string>
+  /** Closes the file, converts it to MP4 and resolves with the result. */
+  recordingEnd(): Promise<RecordingResult>
 
   showFile(path: string): void
 }

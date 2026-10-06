@@ -48,6 +48,11 @@ async function record(): Promise<void> {
   recording.mic?.addEventListener('unmute', showMic)
 }
 
+function formatDuration(totalSec: number): string {
+  const s = Math.round(totalSec)
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+}
+
 function micStatus(mic: MediaStreamTrack | null): string {
   if (!mic) return 'Recording without microphone'
   const name = mic.label.replace(/^Default - /, '')
@@ -60,8 +65,9 @@ async function stop(): Promise<void> {
   recording = null
   setState('saving', 'Saving…')
   try {
-    savedPath = await current.stop()
-    setState('idle', 'Saved.')
+    const result = await current.stop()
+    savedPath = result.path
+    setState('idle', `Saved ${formatDuration(result.durationSec)} video.`)
   } catch (err) {
     setState('idle', `Save failed: ${(err as Error).message}`)
   }

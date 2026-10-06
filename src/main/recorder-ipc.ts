@@ -1,8 +1,10 @@
 import { createWriteStream, mkdirSync, type WriteStream } from 'fs'
+import { rm } from 'fs/promises'
 import { join } from 'path'
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { IPC } from '../shared/ipc'
-import type { RecordingInfo } from '../shared/types'
+import type { RecordingInfo, RecordingResult } from '../shared/types'
+import { convertRecording } from './convert'
 
 let current: { file: WriteStream; path: string; window: BrowserWindow | null } | null = null
 
@@ -50,6 +52,16 @@ export function registerRecorderIpc(): void {
       file.end(resolve)
     })
     console.log('[recorder] saved', path)
-    return path
+
+    const converted = await convertRecording(path)
+    // The MP4 is the keeper; the WebM is only kept if conversion fails (it throws above).
+    await rm(path, { force: true })
+    console.log('[recorder] converted', converted)
+    const result: RecordingResult = {
+      path: converted.mp4Path,
+      thumbnailPath: converted.thumbnailPath,
+      durationSec: converted.durationSec
+    }
+    return result
   })
 }

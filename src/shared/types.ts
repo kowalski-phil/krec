@@ -15,3 +15,10 @@ export interface RecordingInfo {
   frameRate: number
   hasAudio: boolean
 }
+
+// A finished, converted recording on disk.
+export interface RecordingResult {
+  path: string // the MP4
+  thumbnailPath: string
+  durationSec: number
+}

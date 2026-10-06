@@ -7,6 +7,9 @@ files:
   - out/**
   - assets/**
   - package.json
+# FFmpeg must be a real file on disk to be executed, not packed inside app.asar.
+asarUnpack:
+  - node_modules/ffmpeg-static/**
 win:
   target: nsis
   icon: assets/icon.ico

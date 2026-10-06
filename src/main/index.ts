@@ -2,6 +2,7 @@ import { join } from 'path'
 import { app, BrowserWindow, ipcMain, screen, shell } from 'electron'
 import { IPC } from '../shared/ipc'
 import { registerCapture } from './capture'
+import { killConversions } from './convert'
 import { registerRecorderIpc } from './recorder-ipc'
 
 const PANEL_WIDTH = 300
@@ -97,4 +98,5 @@ if (!app.requestSingleInstanceLock()) {
   })
 
   app.on('window-all-closed', () => app.quit())
+  app.on('will-quit', killConversions)
 }

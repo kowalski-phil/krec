@@ -1,6 +1,8 @@
 // MediaRecorder lifecycle: grabs the picked screen/window plus the mic, records WebM,
 // and streams a chunk to main every second so the renderer never holds the whole file.
 
+import type { RecordingResult } from '../../shared/types'
+
 const CHUNK_MS = 1000
 const FRAME_RATE = 30
 const VIDEO_BITS_PER_SECOND = 6_000_000
@@ -10,8 +12,8 @@ const AUDIO_BITS_PER_SECOND = 128_000
 const MIME_CANDIDATES = ['video/webm;codecs=h264,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
 
 export interface Recording {
-  /** Stops recording, flushes the file and resolves with its path on disk. */
-  stop(): Promise<string>
+  /** Stops recording, flushes and converts the file, and resolves with the MP4. */
+  stop(): Promise<RecordingResult>
   /** Null when no microphone could be opened; the video is then silent. */
   mic: MediaStreamTrack | null
 }
