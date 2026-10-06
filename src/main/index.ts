@@ -8,6 +8,10 @@ import { registerSettingsIpc } from './settings-ipc'
 import { getSettings } from './store'
 import { resumeUploads, startUpload } from './uploads'
 
+// Dev/testing: run against a separate profile (settings, history) so tests never upload
+// to the real AWS bucket or touch the real history. Must be set before anything reads it.
+if (process.env['KREC_USER_DATA']) app.setPath('userData', process.env['KREC_USER_DATA'])
+
 const PANEL_WIDTH = 300
 const PANEL_HEIGHT = 108
 const SCREEN_MARGIN = 24

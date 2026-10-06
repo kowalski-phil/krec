@@ -12,10 +12,19 @@ const AUDIO_BITS_PER_SECOND = 128_000
 const MIME_CANDIDATES = ['video/webm;codecs=h264,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
 
 export interface Recording {
-  /** Stops recording, flushes and converts the file, and resolves with the MP4. */
-  stop(): Promise<RecordingResult>
   /** Null when no microphone could be opened; the video is then silent. */
   mic: MediaStreamTrack | null
+  /** Starts writing frames. Called after the countdown, so it is not in the video. */
+  start(): void
+  pause(): void
+  resume(): void
+  readonly paused: boolean
+  /** Recorded time so far, excluding pauses. */
+  elapsedMs(): number
+  /** Stops recording, flushes and converts the file, and resolves with the MP4. */
+  stop(): Promise<RecordingResult>
+  /** Throws the recording away (e.g. countdown cancelled); nothing is kept on disk. */
+  cancel(): Promise<void>
 }
 
 /** The mic chosen in Settings, or the Windows default if none is set or it is unplugged. */
@@ -37,10 +46,11 @@ async function openMicrophone(): Promise<MediaStream | null> {
 }
 
 /**
- * Starts recording the source chosen in the picker. `onSourceEnded` fires when the
- * captured window closes by itself; the caller should then call stop().
+ * Opens the source chosen in the picker, the mic and the file on disk, ready to start().
+ * Doing this before the countdown means recording begins the instant it ends.
+ * `onSourceEnded` fires when the captured window closes by itself.
  */
-export async function startRecording(onSourceEnded: () => void): Promise<Recording> {
+export async function prepareRecording(onSourceEnded: () => void): Promise<Recording> {
   // Capped at 1920x1080 (aspect ratio kept) to match the 1080p output and save CPU.
   const screen = await navigator.mediaDevices.getDisplayMedia({
     video: { frameRate: FRAME_RATE, width: { max: 1920 }, height: { max: 1080 } },
@@ -86,16 +96,50 @@ export async function startRecording(onSourceEnded: () => void): Promise<Recordi
   })
 
   screen.getVideoTracks()[0].addEventListener('ended', onSourceEnded)
-  recorder.start(CHUNK_MS)
+
+  // Elapsed time = finished segments + the running one. A segment ends at each pause.
+  let doneMs = 0
+  let segmentStart: number | null = null
+
+  const finish = async (): Promise<void> => {
+    if (recorder.state !== 'inactive') {
+      recorder.stop()
+      await stopped
+    }
+    await pending
+    stopTracks()
+  }
 
   return {
     mic: mic?.getAudioTracks()[0] ?? null,
+    start() {
+      recorder.start(CHUNK_MS)
+      segmentStart = performance.now()
+    },
+    pause() {
+      if (recorder.state !== 'recording' || segmentStart === null) return
+      recorder.pause()
+      doneMs += performance.now() - segmentStart
+      segmentStart = null
+    },
+    resume() {
+      if (recorder.state !== 'paused') return
+      recorder.resume()
+      segmentStart = performance.now()
+    },
+    get paused() {
+      return recorder.state === 'paused'
+    },
+    elapsedMs() {
+      return doneMs + (segmentStart === null ? 0 : performance.now() - segmentStart)
+    },
     async stop() {
-      if (recorder.state !== 'inactive') recorder.stop()
-      await stopped
-      await pending
-      stopTracks()
+      await finish()
       return window.krec.recordingEnd()
+    },
+    async cancel() {
+      await finish()
+      await window.krec.recordingCancel()
     }
   }
 }

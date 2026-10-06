@@ -10,6 +10,7 @@ export const IPC = {
   recordingBegin: 'recording:begin',
   recordingChunk: 'recording:chunk',
   recordingEnd: 'recording:end',
+  recordingCancel: 'recording:cancel',
 
   settingsOpen: 'settings:open',
   settingsGet: 'settings:get',

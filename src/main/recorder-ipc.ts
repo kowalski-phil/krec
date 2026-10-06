@@ -19,6 +19,20 @@ function recordingName(date = new Date()): string {
   return `Krec ${day} ${time}`
 }
 
+/** Flushes and closes the recording file, lifts the capture exclusion, returns the path. */
+async function closeCurrent(): Promise<string> {
+  if (!current) throw new Error('No recording in progress')
+  const { file, path, window } = current
+  current = null
+  if (window && !window.isDestroyed()) window.setContentProtection(false)
+  await new Promise<void>((resolve, reject) => {
+    if (file.errored) return reject(file.errored)
+    file.once('error', reject)
+    file.end(resolve)
+  })
+  return path
+}
+
 export function registerRecorderIpc(): void {
   ipcMain.handle(IPC.recordingBegin, (event, info: RecordingInfo) => {
     if (current) throw new Error('A recording is already in progress')
@@ -40,16 +54,14 @@ export function registerRecorderIpc(): void {
     current?.file.write(Buffer.from(data))
   })
 
+  ipcMain.handle(IPC.recordingCancel, async () => {
+    const path = await closeCurrent()
+    await rm(path, { force: true })
+    console.log('[recorder] cancelled', path)
+  })
+
   ipcMain.handle(IPC.recordingEnd, async (): Promise<RecordingResult> => {
-    if (!current) throw new Error('No recording in progress')
-    const { file, path, window } = current
-    current = null
-    if (window && !window.isDestroyed()) window.setContentProtection(false)
-    await new Promise<void>((resolve, reject) => {
-      if (file.errored) return reject(file.errored)
-      file.once('error', reject)
-      file.end(resolve)
-    })
+    const path = await closeCurrent()
     console.log('[recorder] saved', path)
 
     const converted = await convertRecording(path)

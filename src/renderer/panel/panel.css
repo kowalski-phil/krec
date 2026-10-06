@@ -165,3 +165,93 @@ body {
   text-decoration: underline;
   cursor: pointer;
 }
+
+/* --- Countdown, pause and timer --------------------------------------- */
+
+/* Which controls show depends on the panel state. */
+.pause-btn,
+.timer,
+.toggle {
+  display: none;
+}
+
+[data-state='idle'] .toggle,
+[data-state='picking'] .toggle,
+[data-state='saving'] .toggle {
+  display: flex;
+}
+
+[data-state='recording'] .pause-btn {
+  display: flex;
+}
+
+[data-state='recording'] .timer,
+[data-state='countdown'] .timer {
+  display: block;
+}
+
+[data-state='countdown'] .main-btn {
+  background: var(--bg-raised);
+}
+
+[data-state='countdown'] .main-btn:hover {
+  background: var(--bg-hover);
+}
+
+[data-state='countdown'] .main-icon {
+  display: none;
+}
+
+.pause-btn {
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 18px;
+  background: var(--bg-raised);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.pause-btn:hover {
+  background: var(--bg-hover);
+}
+
+/* Two bars = Pause, triangle = Resume. */
+.pause-icon {
+  width: 8px;
+  height: 10px;
+  border-left: 3px solid currentColor;
+  border-right: 3px solid currentColor;
+}
+
+[data-paused='true'] .pause-icon {
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 8px solid currentColor;
+  border-right: 0;
+}
+
+.timer {
+  margin-left: auto;
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+[data-state='countdown'] .timer {
+  font-size: 22px;
+  color: var(--red);
+}
+
+[data-paused='true'] .timer {
+  animation: blink 1.2s infinite;
+}
+
+[data-paused='true'] #status-text::before {
+  animation: none;
+  opacity: 0.4;
+}

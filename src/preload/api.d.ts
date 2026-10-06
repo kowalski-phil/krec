@@ -24,6 +24,8 @@ export interface KrecApi {
   recordingChunk(data: ArrayBuffer): void
   /** Closes the file, converts it to MP4 and starts the upload in the background. */
   recordingEnd(): Promise<RecordingResult>
+  /** Closes and deletes the file without converting or uploading it. */
+  recordingCancel(): Promise<void>
 
   openSettings(): void
   closeSettings(): void

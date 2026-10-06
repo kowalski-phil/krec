@@ -14,6 +14,7 @@ const api: KrecApi = {
   recordingBegin: (info) => ipcRenderer.invoke(IPC.recordingBegin, info),
   recordingChunk: (data) => ipcRenderer.send(IPC.recordingChunk, data),
   recordingEnd: () => ipcRenderer.invoke(IPC.recordingEnd),
+  recordingCancel: () => ipcRenderer.invoke(IPC.recordingCancel),
 
   openSettings: () => ipcRenderer.send(IPC.settingsOpen),
   closeSettings: () => ipcRenderer.send(IPC.settingsClose),
