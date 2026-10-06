@@ -4,6 +4,8 @@ One-click screen recordings that upload themselves and hand you a share link. A 
 
 Written by Fable 5.1 on 2026-10-06 after a four-round requirements interview with Phil. Intended to be executed by Opus. Decisions below are settled; do not re-ask them.
 
+**Status (2026-10-06): all 9 steps built and verified with Phil.** Changes from the original plan, all decided with Phil: host switched from Bunny Stream to AWS S3 + CloudFront (section 4); Skool posts get the MP4 itself via drag or "Copy video file" in History; the panel keeps its size while recording instead of shrinking to a bar. User guide: README.md.
+
 ---
 
 ## 1. What we are building, in one paragraph
@@ -138,7 +140,7 @@ Work in this order. Each step ends with something Phil can click and verify.
 6. **Webcam bubble**: webcam dropdown in Settings, toggle on panel, canvas compositor with circular clip bottom-right at about 220 px diameter with a 3 px white ring. Check CPU usage; apply the FFmpeg-overlay fallback only if frames drop.
 7. **History list** with all actions, retry on failure, delete with confirmation.
 8. **Packaging**: `npm run dist` produces `Krec Setup x.y.z.exe`. Install on Phil's machine, run the full flow once from the installed copy.
-9. **README** for Phil: how to run the AWS setup script in CloudShell, where files live, how to remove the AWS resources.
+9. **README** for Phil (done): how to run the AWS setup script in CloudShell, where files live, how to remove the AWS resources (`scripts/aws-teardown.sh`).
 
 ## 8. Acceptance test (what "done" means)
 
