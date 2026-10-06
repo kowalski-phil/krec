@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+    />
+    <title>Krec</title>
+    <link rel="stylesheet" href="./panel.css" />
+  </head>
+  <body>
+    <main class="panel">
+      <div class="titlebar">
+        <span class="brand"><span class="brand-dot"></span>Krec</span>
+        <div class="window-buttons">
+          <button id="btn-minimize" class="icon-btn" title="Minimize" aria-label="Minimize">&#x2013;</button>
+          <button id="btn-close" class="icon-btn" title="Quit Krec" aria-label="Quit Krec">&#x2715;</button>
+        </div>
+      </div>
+      <div class="controls">
+        <button id="btn-record" class="record-btn" disabled title="Recording arrives in step 2">
+          <span class="record-dot"></span>Record
+        </button>
+        <label class="toggle" title="Webcam bubble arrives in step 6">
+          <input id="toggle-webcam" type="checkbox" disabled />
+          <span>Webcam</span>
+        </label>
+      </div>
+    </main>
+    <script type="module" src="./panel.ts"></script>
+  </body>
+</html>
