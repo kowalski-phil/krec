@@ -4,7 +4,7 @@ import { rm } from 'fs/promises'
 import { basename, extname, join } from 'path'
 import { BrowserWindow, ipcMain } from 'electron'
 import { IPC } from '../shared/ipc'
-import type { RecordingInfo, RecordingResult } from '../shared/types'
+import type { RecordingInfo, RecordingResult, RecordingStats } from '../shared/types'
 import { convertRecording } from './convert'
 import { addHistoryItem, getAwsConfig, publicSettings } from './store'
 import { startUpload } from './uploads'
@@ -60,9 +60,9 @@ export function registerRecorderIpc(): void {
     console.log('[recorder] cancelled', path)
   })
 
-  ipcMain.handle(IPC.recordingEnd, async (): Promise<RecordingResult> => {
+  ipcMain.handle(IPC.recordingEnd, async (_event, stats: RecordingStats): Promise<RecordingResult> => {
     const path = await closeCurrent()
-    console.log('[recorder] saved', path)
+    console.log('[recorder] saved', path, stats)
 
     const converted = await convertRecording(path)
     // The MP4 is the keeper; the WebM is only kept if conversion fails (it throws above).

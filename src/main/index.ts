@@ -54,7 +54,9 @@ function createPanel(): BrowserWindow {
     alwaysOnTop: true,
     show: false,
     backgroundColor: BACKGROUND,
-    webPreferences: secureWebPreferences()
+    // The panel draws the webcam bubble into the recording, so it must keep full speed
+    // even when minimized or covered; Chromium would otherwise throttle its timers.
+    webPreferences: { ...secureWebPreferences(), backgroundThrottling: false }
   })
   win.setAlwaysOnTop(true, 'floating')
   win.once('ready-to-show', () => win.show())

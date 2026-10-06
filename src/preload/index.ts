@@ -13,7 +13,7 @@ const api: KrecApi = {
 
   recordingBegin: (info) => ipcRenderer.invoke(IPC.recordingBegin, info),
   recordingChunk: (data) => ipcRenderer.send(IPC.recordingChunk, data),
-  recordingEnd: () => ipcRenderer.invoke(IPC.recordingEnd),
+  recordingEnd: (stats) => ipcRenderer.invoke(IPC.recordingEnd, stats),
   recordingCancel: () => ipcRenderer.invoke(IPC.recordingCancel),
 
   openSettings: () => ipcRenderer.send(IPC.settingsOpen),
@@ -22,6 +22,7 @@ const api: KrecApi = {
   saveSettings: (update) => ipcRenderer.invoke(IPC.settingsSave, update),
   validateAws: (setupCode) => ipcRenderer.invoke(IPC.settingsValidate, setupCode),
   chooseFolder: () => ipcRenderer.invoke(IPC.settingsChooseFolder),
+  setWebcamEnabled: (enabled) => ipcRenderer.send(IPC.settingsSetWebcamEnabled, enabled),
 
   onUploadUpdate: (callback) => {
     const listener = (_event: IpcRendererEvent, update: UploadUpdate): void => callback(update)

@@ -18,6 +18,7 @@ export const IPC = {
   settingsValidate: 'settings:validate',
   settingsChooseFolder: 'settings:choose-folder',
   settingsClose: 'settings:close',
+  settingsSetWebcamEnabled: 'settings:set-webcam-enabled',
 
   uploadUpdate: 'upload:update', // main -> renderer
   uploadRetry: 'upload:retry',

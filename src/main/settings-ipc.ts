@@ -30,6 +30,7 @@ export function registerSettingsIpc(openSettings: () => void): void {
   ipcMain.on(IPC.settingsOpen, () => openSettings())
   ipcMain.on(IPC.settingsClose, (event) => BrowserWindow.fromWebContents(event.sender)?.close())
   ipcMain.handle(IPC.settingsGet, () => publicSettings())
+  ipcMain.on(IPC.settingsSetWebcamEnabled, (_event, enabled: boolean) => setSettings({ webcamEnabled: enabled }))
   ipcMain.handle(IPC.settingsValidate, (_event, code: string | null) => validate(code?.trim() || null))
 
   ipcMain.handle(IPC.settingsSave, async (_event, update: SettingsUpdate): Promise<ValidationResult> => {
@@ -43,6 +44,7 @@ export function registerSettingsIpc(openSettings: () => void): void {
     }
     setSettings({
       micDeviceId: update.micDeviceId,
+      webcamDeviceId: update.webcamDeviceId,
       saveDir: update.saveDir === defaultRecordingsDir() ? '' : update.saveDir
     })
     return { ok: true, message: 'Saved.' }

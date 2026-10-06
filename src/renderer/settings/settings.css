@@ -178,3 +178,25 @@ textarea:focus {
 .footer .result {
   flex: 1;
 }
+
+.webcam-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.webcam-field {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Same shape as the bubble in the recording. */
+.webcam-preview {
+  width: 96px;
+  height: 96px;
+  flex: none;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--bg-raised);
+}

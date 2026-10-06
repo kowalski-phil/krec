@@ -14,6 +14,13 @@ export interface RecordingInfo {
   height: number
   frameRate: number
   hasAudio: boolean
+  hasWebcam: boolean
+}
+
+// Measured during a recording and logged by main when it ends.
+export interface RecordingStats {
+  /** Average frames per second the webcam compositor drew; null without webcam. */
+  compositorFps: number | null
 }
 
 // A finished, converted recording on disk. Upload continues in the background.
@@ -70,6 +77,8 @@ export interface AwsSummary {
 export interface PublicSettings {
   aws: AwsSummary | null
   micDeviceId: string // '' = Windows default
+  webcamDeviceId: string // '' = first camera Windows offers
+  webcamEnabled: boolean // the panel's Webcam toggle
   saveDir: string
 }
 
@@ -77,6 +86,7 @@ export interface SettingsUpdate {
   /** A "krec1:" setup code from scripts/aws-setup.sh; null keeps the current AWS setup. */
   awsSetupCode: string | null
   micDeviceId: string
+  webcamDeviceId: string
   saveDir: string
 }
 

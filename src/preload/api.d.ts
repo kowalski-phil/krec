@@ -3,6 +3,7 @@ import type {
   PublicSettings,
   RecordingInfo,
   RecordingResult,
+  RecordingStats,
   SettingsUpdate,
   UploadUpdate,
   ValidationResult
@@ -23,7 +24,7 @@ export interface KrecApi {
   recordingBegin(info: RecordingInfo): Promise<void>
   recordingChunk(data: ArrayBuffer): void
   /** Closes the file, converts it to MP4 and starts the upload in the background. */
-  recordingEnd(): Promise<RecordingResult>
+  recordingEnd(stats: RecordingStats): Promise<RecordingResult>
   /** Closes and deletes the file without converting or uploading it. */
   recordingCancel(): Promise<void>
 
@@ -34,6 +35,8 @@ export interface KrecApi {
   /** Tests an AWS setup code end to end. A null code tests the stored setup. */
   validateAws(setupCode: string | null): Promise<ValidationResult>
   chooseFolder(): Promise<string | null>
+  /** The panel's Webcam toggle; remembered across restarts. */
+  setWebcamEnabled(enabled: boolean): void
 
   /** Subscribes to upload progress and status changes. Returns an unsubscribe function. */
   onUploadUpdate(callback: (update: UploadUpdate) => void): () => void

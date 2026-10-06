@@ -20,6 +20,7 @@ const pauseLabel = byId('pause-label')
 const timer = byId('timer')
 const statusText = byId('status-text')
 const actionBtn = byId<HTMLButtonElement>('btn-status-action')
+const webcamToggle = byId<HTMLInputElement>('toggle-webcam')
 
 const MAIN_LABELS: Record<PanelState, string> = {
   idle: 'Record',
@@ -112,7 +113,8 @@ function micStatus(mic: MediaStreamTrack | null): string {
 
 function showRecordingStatus(): void {
   if (state !== 'recording' || !recording) return
-  setStatus(recording.paused ? 'Paused' : micStatus(recording.mic))
+  const noCamera = webcamToggle.checked && !recording.hasWebcam ? 'No webcam found · ' : ''
+  setStatus(recording.paused ? 'Paused' : noCamera + micStatus(recording.mic))
 }
 
 async function record(): Promise<void> {
@@ -185,6 +187,8 @@ mainBtn.addEventListener('click', () => {
   else if (state === 'recording') void stop()
 })
 pauseBtn.addEventListener('click', togglePause)
+webcamToggle.addEventListener('change', () => window.krec.setWebcamEnabled(webcamToggle.checked))
+void window.krec.getSettings().then((s) => (webcamToggle.checked = s.webcamEnabled))
 actionBtn.addEventListener('click', () => statusAction?.())
 byId('btn-settings').addEventListener('click', () => window.krec.openSettings())
 byId('btn-close').addEventListener('click', () => window.krec.closePanel())

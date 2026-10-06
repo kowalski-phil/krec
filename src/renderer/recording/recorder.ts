@@ -1,7 +1,9 @@
-// MediaRecorder lifecycle: grabs the picked screen/window plus the mic, records WebM,
-// and streams a chunk to main every second so the renderer never holds the whole file.
+// MediaRecorder lifecycle: grabs the picked screen/window, the mic and (optionally) the
+// webcam, records WebM, and streams a chunk to main every second so the renderer never
+// holds the whole file.
 
-import type { RecordingResult } from '../../shared/types'
+import type { RecordingResult, RecordingStats } from '../../shared/types'
+import { startCompositor, type Compositor } from './compositor'
 
 const CHUNK_MS = 1000
 const FRAME_RATE = 30
@@ -14,6 +16,8 @@ const MIME_CANDIDATES = ['video/webm;codecs=h264,opus', 'video/webm;codecs=vp8,o
 export interface Recording {
   /** Null when no microphone could be opened; the video is then silent. */
   mic: MediaStreamTrack | null
+  /** Whether the webcam bubble is in the video (toggle on and a camera could be opened). */
+  hasWebcam: boolean
   /** Starts writing frames. Called after the countdown, so it is not in the video. */
   start(): void
   pause(): void
@@ -28,8 +32,7 @@ export interface Recording {
 }
 
 /** The mic chosen in Settings, or the Windows default if none is set or it is unplugged. */
-async function openMicrophone(): Promise<MediaStream | null> {
-  const { micDeviceId } = await window.krec.getSettings()
+async function openMicrophone(micDeviceId: string): Promise<MediaStream | null> {
   if (micDeviceId) {
     try {
       return await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: micDeviceId } } })
@@ -45,6 +48,22 @@ async function openMicrophone(): Promise<MediaStream | null> {
   }
 }
 
+/** The camera chosen in Settings, falling back to any camera. Null if none can be opened. */
+async function openWebcam(webcamDeviceId: string): Promise<MediaStreamTrack | null> {
+  const size = { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: FRAME_RATE } }
+  const attempts: MediaTrackConstraints[] = webcamDeviceId
+    ? [{ ...size, deviceId: { exact: webcamDeviceId } }, size]
+    : [size]
+  for (const video of attempts) {
+    try {
+      return (await navigator.mediaDevices.getUserMedia({ video, audio: false })).getVideoTracks()[0]
+    } catch (err) {
+      console.warn('Webcam unavailable', video, err)
+    }
+  }
+  return null
+}
+
 /**
  * Opens the source chosen in the picker, the mic and the file on disk, ready to start().
  * Doing this before the countdown means recording begins the instant it ends.
@@ -56,11 +75,31 @@ export async function prepareRecording(onSourceEnded: () => void): Promise<Recor
     video: { frameRate: FRAME_RATE, width: { max: 1920 }, height: { max: 1080 } },
     audio: false
   })
-  const mic = await openMicrophone()
+  const screenTrack = screen.getVideoTracks()[0]
+  const settings = await window.krec.getSettings()
+  const mic = await openMicrophone(settings.micDeviceId)
+  const webcam = settings.webcamEnabled ? await openWebcam(settings.webcamDeviceId) : null
 
-  const tracks = [...screen.getVideoTracks(), ...(mic?.getAudioTracks() ?? [])]
-  const stream = new MediaStream(tracks)
-  const stopTracks = (): void => tracks.forEach((t) => t.stop())
+  // With the webcam on, record a canvas that paints screen + bubble; otherwise the raw screen.
+  let compositor: Compositor | null = null
+  if (webcam) {
+    try {
+      compositor = await startCompositor(screenTrack, webcam)
+    } catch (err) {
+      webcam.stop()
+      screenTrack.stop()
+      mic?.getTracks().forEach((t) => t.stop())
+      throw err
+    }
+  }
+
+  const sources = [screenTrack, ...(webcam ? [webcam] : []), ...(mic?.getAudioTracks() ?? [])]
+  const recorded = [compositor?.track ?? screenTrack, ...(mic?.getAudioTracks() ?? [])]
+  const stream = new MediaStream(recorded)
+  const stopTracks = (): void => {
+    compositor?.stop()
+    sources.forEach((t) => t.stop())
+  }
 
   const mimeType = MIME_CANDIDATES.find((m) => MediaRecorder.isTypeSupported(m)) ?? ''
   const recorder = new MediaRecorder(stream, {
@@ -69,14 +108,15 @@ export async function prepareRecording(onSourceEnded: () => void): Promise<Recor
     audioBitsPerSecond: AUDIO_BITS_PER_SECOND
   })
 
-  const settings = screen.getVideoTracks()[0].getSettings()
+  const screenSettings = screenTrack.getSettings()
   try {
     await window.krec.recordingBegin({
       mimeType: recorder.mimeType,
-      width: settings.width ?? 0,
-      height: settings.height ?? 0,
-      frameRate: settings.frameRate ?? 0,
-      hasAudio: mic !== null
+      width: compositor?.width ?? screenSettings.width ?? 0,
+      height: compositor?.height ?? screenSettings.height ?? 0,
+      frameRate: screenSettings.frameRate ?? 0,
+      hasAudio: mic !== null,
+      hasWebcam: compositor !== null
     })
   } catch (err) {
     stopTracks()
@@ -95,23 +135,26 @@ export async function prepareRecording(onSourceEnded: () => void): Promise<Recor
     recorder.onstop = () => resolve()
   })
 
-  screen.getVideoTracks()[0].addEventListener('ended', onSourceEnded)
+  screenTrack.addEventListener('ended', onSourceEnded)
 
   // Elapsed time = finished segments + the running one. A segment ends at each pause.
   let doneMs = 0
   let segmentStart: number | null = null
 
-  const finish = async (): Promise<void> => {
+  const finish = async (): Promise<RecordingStats> => {
+    const stats: RecordingStats = { compositorFps: compositor ? Math.round(compositor.averageFps() * 10) / 10 : null }
     if (recorder.state !== 'inactive') {
       recorder.stop()
       await stopped
     }
     await pending
     stopTracks()
+    return stats
   }
 
   return {
     mic: mic?.getAudioTracks()[0] ?? null,
+    hasWebcam: compositor !== null,
     start() {
       recorder.start(CHUNK_MS)
       segmentStart = performance.now()
@@ -134,8 +177,7 @@ export async function prepareRecording(onSourceEnded: () => void): Promise<Recor
       return doneMs + (segmentStart === null ? 0 : performance.now() - segmentStart)
     },
     async stop() {
-      await finish()
-      return window.krec.recordingEnd()
+      return window.krec.recordingEnd(await finish())
     },
     async cancel() {
       await finish()

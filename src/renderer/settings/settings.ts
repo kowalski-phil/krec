@@ -21,7 +21,12 @@ const testBtn = byId<HTMLButtonElement>('btn-test')
 // Browser device ids for the Windows default and communications devices; not real devices.
 const ALIAS_IDS = ['default', 'communications']
 
+const webcam = byId<HTMLSelectElement>('webcam')
+const webcamPreview = byId<HTMLVideoElement>('webcam-preview')
+const webcamNote = byId('webcam-note')
+
 let savedMicId = ''
+let savedWebcamId = ''
 
 function showResult(el: HTMLElement, result: ValidationResult | null): void {
   el.textContent = result?.message ?? ''
@@ -85,6 +90,43 @@ async function startMeter(): Promise<void> {
   draw()
 }
 
+// --- Webcam list and round preview ----------------------------------------
+
+async function refreshWebcams(): Promise<void> {
+  const selected = webcam.value || savedWebcamId
+  const cameras = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput')
+
+  const options = [new Option(cameras.length ? `First available (${cameras[0].label || 'camera'})` : 'No camera found', '')]
+  for (const c of cameras) options.push(new Option(c.label || 'Unnamed camera', c.deviceId))
+  const missing = selected !== '' && !cameras.some((c) => c.deviceId === selected)
+  if (missing) options.push(new Option('Saved camera (not connected right now)', selected))
+
+  webcam.replaceChildren(...options)
+  webcam.value = selected
+  webcamNote.textContent = missing
+    ? 'Your saved camera is not connected. The bubble uses the first available camera until it is back.'
+    : 'Turn the bubble on or off with the Webcam toggle on the panel.'
+  void startPreview()
+}
+
+let previewStream: MediaStream | null = null
+
+async function startPreview(): Promise<void> {
+  previewStream?.getTracks().forEach((t) => t.stop())
+  previewStream = null
+  webcamPreview.srcObject = null
+  try {
+    previewStream = await navigator.mediaDevices.getUserMedia({
+      video: webcam.value ? { deviceId: { exact: webcam.value } } : true,
+      audio: false
+    })
+    webcamPreview.srcObject = previewStream
+    await webcamPreview.play()
+  } catch {
+    /* camera busy or unplugged: the preview stays empty */
+  }
+}
+
 // --- Load, test, save ----------------------------------------------------
 
 async function load(): Promise<void> {
@@ -98,15 +140,19 @@ async function load(): Promise<void> {
   }
   saveDir.textContent = s.saveDir
   savedMicId = s.micDeviceId
+  savedWebcamId = s.webcamDeviceId
 
-  // Device names are only revealed once the mic has been opened once.
-  try {
-    const probe = await navigator.mediaDevices.getUserMedia({ audio: true })
-    probe.getTracks().forEach((t) => t.stop())
-  } catch {
-    /* no mic at all: the list just stays short */
+  // Device names are only revealed once each kind of device has been opened once.
+  for (const kind of ['audio', 'video'] as const) {
+    try {
+      const probe = await navigator.mediaDevices.getUserMedia({ [kind]: true })
+      probe.getTracks().forEach((t) => t.stop())
+    } catch {
+      /* no device of this kind: its list just stays short */
+    }
   }
   await refreshMics()
+  await refreshWebcams()
 }
 
 testBtn.addEventListener('click', async () => {
@@ -125,6 +171,7 @@ saveBtn.addEventListener('click', async () => {
   const result = await window.krec.saveSettings({
     awsSetupCode: awsCode.value.trim() || null,
     micDeviceId: mic.value,
+    webcamDeviceId: webcam.value,
     saveDir: saveDir.textContent ?? ''
   })
   saveBtn.disabled = false
@@ -139,7 +186,11 @@ byId('btn-folder').addEventListener('click', async () => {
 })
 byId('btn-open-folder').addEventListener('click', () => window.krec.openPath(saveDir.textContent ?? ''))
 mic.addEventListener('change', () => void startMeter())
-navigator.mediaDevices.addEventListener('devicechange', () => void refreshMics())
+webcam.addEventListener('change', () => void startPreview())
+navigator.mediaDevices.addEventListener('devicechange', () => {
+  void refreshMics()
+  void refreshWebcams()
+})
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') window.krec.closeSettings()
 })

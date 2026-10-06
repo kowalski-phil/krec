@@ -11,7 +11,17 @@ type StoredAws = Omit<AwsConfig, 'secretAccessKey'> & { secretEncrypted: string 
 interface StoredSettings {
   aws: StoredAws | null
   micDeviceId: string
+  webcamDeviceId: string
+  webcamEnabled: boolean
   saveDir: string // '' = default
+}
+
+const DEFAULT_SETTINGS: StoredSettings = {
+  aws: null,
+  micDeviceId: '',
+  webcamDeviceId: '',
+  webcamEnabled: false,
+  saveDir: ''
 }
 
 interface Schema {
@@ -24,7 +34,7 @@ let store: Store<Schema> | null = null
 function db(): Store<Schema> {
   store ??= new Store<Schema>({
     defaults: {
-      settings: { aws: null, micDeviceId: '', saveDir: '' },
+      settings: DEFAULT_SETTINGS,
       history: []
     }
   })
@@ -35,8 +45,9 @@ export function defaultRecordingsDir(): string {
   return join(app.getPath('videos'), 'Krec')
 }
 
+// Defaults only fill missing top-level keys, so merge here for settings saved by older versions.
 export function getSettings(): StoredSettings {
-  return db().get('settings')
+  return { ...DEFAULT_SETTINGS, ...db().get('settings') }
 }
 
 export function setSettings(patch: Partial<StoredSettings>): void {
@@ -55,6 +66,8 @@ export function publicSettings(): PublicSettings {
         }
       : null,
     micDeviceId: s.micDeviceId,
+    webcamDeviceId: s.webcamDeviceId,
+    webcamEnabled: s.webcamEnabled,
     saveDir: s.saveDir || defaultRecordingsDir()
   }
 }
