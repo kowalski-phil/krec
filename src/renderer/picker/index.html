@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+    />
+    <title>Choose what to record</title>
+    <link rel="stylesheet" href="./picker.css" />
+  </head>
+  <body>
+    <header class="header">
+      <h1>Choose what to record</h1>
+      <button id="btn-cancel" class="cancel-btn">Cancel</button>
+    </header>
+    <main id="sources" class="sources">
+      <p class="loading">Looking for screens and windows…</p>
+    </main>
+    <script type="module" src="./picker.ts"></script>
+  </body>
+</html>

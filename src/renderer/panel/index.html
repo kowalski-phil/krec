@@ -10,7 +10,7 @@
     <link rel="stylesheet" href="./panel.css" />
   </head>
   <body>
-    <main class="panel">
+    <main class="panel" data-state="idle">
       <div class="titlebar">
         <span class="brand"><span class="brand-dot"></span>Krec</span>
         <div class="window-buttons">
@@ -19,13 +19,17 @@
         </div>
       </div>
       <div class="controls">
-        <button id="btn-record" class="record-btn" disabled title="Recording arrives in step 2">
-          <span class="record-dot"></span>Record
+        <button id="btn-main" class="main-btn">
+          <span class="main-icon"></span><span id="main-label">Record</span>
         </button>
         <label class="toggle" title="Webcam bubble arrives in step 6">
           <input id="toggle-webcam" type="checkbox" disabled />
           <span>Webcam</span>
         </label>
+      </div>
+      <div class="status">
+        <span id="status-text"></span>
+        <button id="btn-show-file" class="link-btn" hidden>Show file</button>
       </div>
     </main>
     <script type="module" src="./panel.ts"></script>

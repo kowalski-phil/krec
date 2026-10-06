@@ -9,7 +9,8 @@ export default defineConfig({
     build: {
       rollupOptions: {
         input: {
-          panel: resolve(__dirname, 'src/renderer/panel/index.html')
+          panel: resolve(__dirname, 'src/renderer/panel/index.html'),
+          picker: resolve(__dirname, 'src/renderer/picker/index.html')
         }
       }
     }

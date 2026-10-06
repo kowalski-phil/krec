@@ -1,0 +1,28 @@
+:root {
+  --bg: #1c1c1f;
+  --bg-raised: #2a2a2f;
+  --bg-hover: #34343a;
+  --text: #f2f2f4;
+  --text-dim: #9a9aa3;
+  --red: #e5383b;
+  --red-hover: #f04a4d;
+  font-family: 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  font-size: 13px;
+  color: var(--text);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+}
+
+html,
+body {
+  height: 100%;
+  background: var(--bg);
+  user-select: none;
+}
+
+button {
+  font: inherit;
+}

@@ -1,12 +1,24 @@
 import { join } from 'path'
-import { app, BrowserWindow, ipcMain, screen } from 'electron'
+import { app, BrowserWindow, ipcMain, screen, shell } from 'electron'
 import { IPC } from '../shared/ipc'
+import { registerCapture } from './capture'
+import { registerRecorderIpc } from './recorder-ipc'
 
 const PANEL_WIDTH = 300
-const PANEL_HEIGHT = 88
+const PANEL_HEIGHT = 108
 const SCREEN_MARGIN = 24
+const BACKGROUND = '#1c1c1f'
 
 let panel: BrowserWindow | null = null
+
+const appIcon = (): string => join(app.getAppPath(), 'assets', 'icon.png')
+
+const secureWebPreferences = (): Electron.WebPreferences => ({
+  preload: join(__dirname, '../preload/index.js'),
+  contextIsolation: true,
+  nodeIntegration: false,
+  sandbox: true
+})
 
 function loadRenderer(win: BrowserWindow, page: string): void {
   const devUrl = process.env['ELECTRON_RENDERER_URL']
@@ -25,20 +37,15 @@ function createPanel(): BrowserWindow {
     x: workArea.x + workArea.width - PANEL_WIDTH - SCREEN_MARGIN,
     y: workArea.y + SCREEN_MARGIN,
     title: 'Krec',
-    icon: join(app.getAppPath(), 'assets', 'icon.png'),
+    icon: appIcon(),
     frame: false,
     resizable: false,
     maximizable: false,
     fullscreenable: false,
     alwaysOnTop: true,
     show: false,
-    backgroundColor: '#1c1c1f',
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true
-    }
+    backgroundColor: BACKGROUND,
+    webPreferences: secureWebPreferences()
   })
   win.setAlwaysOnTop(true, 'floating')
   win.once('ready-to-show', () => win.show())
@@ -46,6 +53,25 @@ function createPanel(): BrowserWindow {
     panel = null
   })
   loadRenderer(win, 'panel')
+  return win
+}
+
+function createPicker(): BrowserWindow {
+  const win = new BrowserWindow({
+    width: 860,
+    height: 600,
+    minWidth: 520,
+    minHeight: 360,
+    title: 'Choose what to record',
+    icon: appIcon(),
+    autoHideMenuBar: true,
+    alwaysOnTop: true,
+    show: false,
+    backgroundColor: BACKGROUND,
+    webPreferences: secureWebPreferences()
+  })
+  win.once('ready-to-show', () => win.show())
+  loadRenderer(win, 'picker')
   return win
 }
 
@@ -63,6 +89,9 @@ if (!app.requestSingleInstanceLock()) {
 
     ipcMain.on(IPC.panelClose, () => app.quit())
     ipcMain.on(IPC.panelMinimize, () => panel?.minimize())
+    ipcMain.on(IPC.showFile, (_event, path: string) => shell.showItemInFolder(path))
+    registerCapture(createPicker)
+    registerRecorderIpc()
 
     panel = createPanel()
   })
