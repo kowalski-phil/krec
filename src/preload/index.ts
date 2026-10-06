@@ -24,6 +24,15 @@ const api: KrecApi = {
   chooseFolder: () => ipcRenderer.invoke(IPC.settingsChooseFolder),
   setWebcamEnabled: (enabled) => ipcRenderer.send(IPC.settingsSetWebcamEnabled, enabled),
 
+  openHistory: () => ipcRenderer.send(IPC.historyOpen),
+  listHistory: () => ipcRenderer.invoke(IPC.historyList),
+  deleteRecording: (historyId) => ipcRenderer.invoke(IPC.historyDelete, historyId),
+  onHistoryChanged: (callback) => {
+    const listener = (): void => callback()
+    ipcRenderer.on(IPC.historyChanged, listener)
+    return () => ipcRenderer.off(IPC.historyChanged, listener)
+  },
+
   onUploadUpdate: (callback) => {
     const listener = (_event: IpcRendererEvent, update: UploadUpdate): void => callback(update)
     ipcRenderer.on(IPC.uploadUpdate, listener)
@@ -33,6 +42,7 @@ const api: KrecApi = {
 
   showFile: (path) => ipcRenderer.send(IPC.showFile, path),
   openPath: (path) => ipcRenderer.send(IPC.openPath, path),
+  openExternal: (url) => ipcRenderer.send(IPC.openExternal, url),
   copyText: (text) => ipcRenderer.send(IPC.copyText, text)
 }
 

@@ -16,7 +16,8 @@ export default defineConfig({
         input: {
           panel: resolve(__dirname, 'src/renderer/panel/index.html'),
           picker: resolve(__dirname, 'src/renderer/picker/index.html'),
-          settings: resolve(__dirname, 'src/renderer/settings/index.html')
+          settings: resolve(__dirname, 'src/renderer/settings/index.html'),
+          history: resolve(__dirname, 'src/renderer/history/index.html')
         }
       }
     }

@@ -1,5 +1,6 @@
 import type {
   CaptureSource,
+  HistoryItem,
   PublicSettings,
   RecordingInfo,
   RecordingResult,
@@ -38,12 +39,21 @@ export interface KrecApi {
   /** The panel's Webcam toggle; remembered across restarts. */
   setWebcamEnabled(enabled: boolean): void
 
+  openHistory(): void
+  listHistory(): Promise<HistoryItem[]>
+  /** Asks for confirmation, then deletes the local file and the online copy. */
+  deleteRecording(historyId: string): Promise<ValidationResult>
+  /** Fires when a recording is added to or removed from the history. */
+  onHistoryChanged(callback: () => void): () => void
+
   /** Subscribes to upload progress and status changes. Returns an unsubscribe function. */
   onUploadUpdate(callback: (update: UploadUpdate) => void): () => void
   retryUpload(historyId: string): void
 
   showFile(path: string): void
   openPath(path: string): void
+  /** Opens an https link in the default browser. */
+  openExternal(url: string): void
   copyText(text: string): void
 }
 

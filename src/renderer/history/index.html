@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: krec-thumb:"
+    />
+    <title>Krec History</title>
+    <link rel="stylesheet" href="./history.css" />
+  </head>
+  <body>
+    <header class="header">
+      <h1>History <span id="count" class="count"></span></h1>
+      <button id="btn-open-folder" class="btn">Open recordings folder</button>
+    </header>
+    <p id="message" class="message" hidden></p>
+    <main id="list" class="list"></main>
+    <script type="module" src="./history.ts"></script>
+  </body>
+</html>

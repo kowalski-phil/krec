@@ -92,6 +92,10 @@ export function addHistoryItem(item: HistoryItem): void {
   db().set('history', [item, ...listHistory()])
 }
 
+export function removeHistoryItem(id: string): void {
+  db().set('history', listHistory().filter((h) => h.id !== id))
+}
+
 export function updateHistoryItem(id: string, patch: Partial<HistoryItem>): HistoryItem {
   let updated: HistoryItem | undefined
   const history = listHistory().map((h) => (h.id === id ? (updated = { ...h, ...patch }) : h))

@@ -4,6 +4,7 @@ import { IPC } from '../shared/ipc'
 import { registerCapture } from './capture'
 import { killConversions } from './convert'
 import { registerRecorderIpc } from './recorder-ipc'
+import { registerHistoryIpc, registerThumbnailScheme } from './history-ipc'
 import { registerSettingsIpc } from './settings-ipc'
 import { getSettings } from './store'
 import { resumeUploads, startUpload } from './uploads'
@@ -19,6 +20,7 @@ const BACKGROUND = '#1c1c1f'
 
 let panel: BrowserWindow | null = null
 let settings: BrowserWindow | null = null
+let history: BrowserWindow | null = null
 
 const appIcon = (): string => join(app.getAppPath(), 'assets', 'icon.png')
 
@@ -108,6 +110,33 @@ function openSettings(): void {
   loadRenderer(settings, 'settings')
 }
 
+// Not always-on-top: "Open in browser" must be able to bring the browser in front of it.
+function openHistory(): void {
+  if (history) {
+    if (history.isMinimized()) history.restore()
+    return history.focus()
+  }
+  history = new BrowserWindow({
+    width: 760,
+    height: 720,
+    minWidth: 560,
+    minHeight: 360,
+    title: 'Krec History',
+    icon: appIcon(),
+    autoHideMenuBar: true,
+    show: false,
+    backgroundColor: BACKGROUND,
+    webPreferences: secureWebPreferences()
+  })
+  history.once('ready-to-show', () => history?.show())
+  history.on('closed', () => {
+    history = null
+  })
+  loadRenderer(history, 'history')
+}
+
+registerThumbnailScheme()
+
 if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
@@ -129,6 +158,7 @@ if (!app.requestSingleInstanceLock()) {
     registerCapture(createPicker)
     registerRecorderIpc()
     registerSettingsIpc(openSettings)
+    registerHistoryIpc(openHistory)
 
     panel = createPanel()
     resumeUploads()

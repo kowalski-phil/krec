@@ -6,6 +6,7 @@ import { BrowserWindow, ipcMain } from 'electron'
 import { IPC } from '../shared/ipc'
 import type { RecordingInfo, RecordingResult, RecordingStats } from '../shared/types'
 import { convertRecording } from './convert'
+import { broadcastHistoryChanged } from './history-ipc'
 import { addHistoryItem, getAwsConfig, publicSettings } from './store'
 import { startUpload } from './uploads'
 
@@ -86,6 +87,7 @@ export function registerRecorderIpc(): void {
       shareUrl: null,
       uploadedAt: null
     })
+    broadcastHistoryChanged()
     const willUpload = getAwsConfig() !== null
     // Start after this reply is sent, so the panel knows the id before progress arrives.
     setImmediate(() => void startUpload(id))

@@ -1,6 +1,7 @@
 import { randomBytes } from 'crypto'
 import { createReadStream } from 'fs'
 import { stat } from 'fs/promises'
+import { CloudFrontClient, CloudFrontServiceException, CreateInvalidationCommand } from '@aws-sdk/client-cloudfront'
 import { DeleteObjectsCommand, PutObjectCommand, S3Client, S3ServiceException } from '@aws-sdk/client-s3'
 import { Upload } from '@aws-sdk/lib-storage'
 
@@ -140,6 +141,40 @@ export async function deleteKeys(cfg: AwsConfig, keys: string[]): Promise<void> 
     )
   } catch (err) {
     throw friendlyError(err)
+  }
+}
+
+/** The three objects behind one share link. */
+export function videoKeys(videoId: string): string[] {
+  return [`v/${videoId}`, `v/${videoId}.mp4`, `v/${videoId}.jpg`]
+}
+
+/**
+ * Deletes a shared video from S3 and evicts it from CloudFront's edge caches, so the
+ * link stops working everywhere within minutes instead of after the cache expires.
+ */
+export async function deleteVideo(cfg: AwsConfig, videoId: string): Promise<void> {
+  await deleteKeys(cfg, videoKeys(videoId))
+  try {
+    // A wildcard path counts as one path; CloudFront's first 1,000 paths a month are free.
+    await new CloudFrontClient({
+      region: 'us-east-1',
+      credentials: { accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey }
+    }).send(
+      new CreateInvalidationCommand({
+        DistributionId: cfg.distributionId,
+        InvalidationBatch: {
+          CallerReference: `krec-delete-${videoId}-${Date.now()}`,
+          Paths: { Quantity: 1, Items: [`/v/${videoId}*`] }
+        }
+      })
+    )
+  } catch (err) {
+    const detail = err instanceof CloudFrontServiceException ? err.name : (err as Error).message
+    throw new StorageError(
+      `The video was deleted, but clearing CloudFront's cache failed (${detail}). The link may keep working for up to a day.`,
+      false
+    )
   }
 }
 

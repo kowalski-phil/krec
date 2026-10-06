@@ -20,10 +20,16 @@ export const IPC = {
   settingsClose: 'settings:close',
   settingsSetWebcamEnabled: 'settings:set-webcam-enabled',
 
+  historyOpen: 'history:open',
+  historyList: 'history:list',
+  historyDelete: 'history:delete',
+  historyChanged: 'history:changed', // main -> renderer: an item was added or removed
+
   uploadUpdate: 'upload:update', // main -> renderer
   uploadRetry: 'upload:retry',
 
   showFile: 'file:show',
   openPath: 'file:open-path',
+  openExternal: 'link:open',
   copyText: 'clipboard:copy'
 } as const
