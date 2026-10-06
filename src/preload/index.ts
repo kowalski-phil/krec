@@ -19,7 +19,7 @@ const api: KrecApi = {
   closeSettings: () => ipcRenderer.send(IPC.settingsClose),
   getSettings: () => ipcRenderer.invoke(IPC.settingsGet),
   saveSettings: (update) => ipcRenderer.invoke(IPC.settingsSave, update),
-  validateBunny: (libraryId, apiKey) => ipcRenderer.invoke(IPC.settingsValidate, libraryId, apiKey),
+  validateAws: (setupCode) => ipcRenderer.invoke(IPC.settingsValidate, setupCode),
   chooseFolder: () => ipcRenderer.invoke(IPC.settingsChooseFolder),
 
   onUploadUpdate: (callback) => {

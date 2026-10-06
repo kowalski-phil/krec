@@ -8,7 +8,7 @@ Written by Fable 5.1 on 2026-10-06 after a four-round requirements interview wit
 
 ## 1. What we are building, in one paragraph
 
-A small always-on-top floating panel on Windows 11. Phil clicks **Record**, picks the screen or a window, optionally turns on a round webcam bubble, and talks. A 3-second countdown runs, then recording starts. He can pause and resume. On **Stop**, the app saves an MP4 locally, uploads it to Bunny Stream, and puts the share link on the clipboard with a Windows notification. The panel keeps a history list so old links can be copied again. The share link opens a full-page player that anyone can watch without logging in, previews with a thumbnail in chat apps, and is unlisted by nature because the video ID is a long random string.
+A small always-on-top floating panel on Windows 11. Phil clicks **Record**, picks the screen or a window, optionally turns on a round webcam bubble, and talks. A 3-second countdown runs, then recording starts. He can pause and resume. On **Stop**, the app saves an MP4 locally, uploads it to AWS (S3 + CloudFront), and puts the share link on the clipboard with a Windows notification. The panel keeps a history list so old links can be copied again. The share link opens a full-page player that anyone can watch without logging in, previews with a thumbnail in chat apps, and is unlisted by nature because the video ID is a long random string.
 
 ## 2. Decisions from the interview (settled)
 
@@ -19,9 +19,8 @@ A small always-on-top floating panel on Windows 11. Phil clicks **Record**, pick
 | Audio | Microphone only. No system audio in v1 |
 | Webcam | Toggle on the panel. Round bubble, bottom-right, fixed size, baked into the video |
 | After Stop | Auto-upload immediately. No title prompt, no preview. Link copied to clipboard. Windows toast when done |
-| Link timing (changed by Phil, 2026-10-06) | Bunny's free encoding queue can take many minutes. The link is copied and the toast shown only once Bunny reports status 4 (Finished). Until then the panel shows "In Bunny's queue · N min" / "Bunny encoding… N%" with a "Copy link now" button |
 | Clipboard content | Only the share URL, nothing else |
-| Video host | **Bunny Stream**. YouTube rejected: its API forces uploads from unaudited projects to private |
+| Video host (changed 2026-10-06) | **AWS S3 + CloudFront**, no transcoding. YouTube rejected: its API forces uploads from unaudited projects to private. Bunny Stream rejected after a live test: a 20-second video sat 9+ minutes in its free encoding queue at 0%. Never re-propose a queue-based transcoding host |
 | Quality | 1080p at 30 fps |
 | Local files | Keep every recording in `%USERPROFILE%\Videos\Krec` |
 | Extras in v1 | 3-second countdown, pause/resume, history list with past links |
@@ -45,45 +44,35 @@ Technical mapping:
 | Recording | `MediaRecorder` on `canvas.captureStream(30)` plus the mic track. Native `pause()` / `resume()` |
 | Final MP4 | `ffmpeg-static` (npm package, binary ships inside the app) converts the WebM to H.264 + AAC MP4 |
 | Settings and history | `electron-store` (JSON file in `%APPDATA%\Krec`) |
-| API key at rest | Electron `safeStorage` (Windows DPAPI), never plain text |
+| AWS secret key at rest | Electron `safeStorage` (Windows DPAPI), never plain text |
 | Clipboard, toast | `clipboard.writeText`, `new Notification()` |
 | Installer | `electron-builder` with NSIS target |
 
-Why the FFmpeg conversion step is required, not optional: Chromium's recorder writes WebM with **Opus** audio. Bunny's supported input audio codecs are AAC, MP3, LPCM, FLAC, WMA and ALAC. Opus is not on the list. The conversion also fixes the known WebM "no duration / not seekable" problem and lets us scale any source to 1080p. Use `-c:v libx264 -preset veryfast -crf 23 -c:a aac -b:a 160k -movflags +faststart`, scaling with `-vf scale=1920:-2` only when the source is wider than 1920.
+Why the FFmpeg conversion step is required, not optional: Chromium's recorder writes WebM, and the share link serves the file as-is with no host-side transcoding, so it must be an MP4 (H.264 + AAC, faststart) that every browser and phone plays. The conversion also fixes the known WebM "no duration / not seekable" problem and lets us scale any source to 1080p. Use `-c:v libx264 -preset veryfast -crf 23 -c:a aac -b:a 160k -movflags +faststart`, scaling with `-vf scale=1920:-2` only when the source is wider than 1920.
 
 Fallback if canvas compositing proves too CPU-heavy on Phil's machine: record the raw screen stream with `MediaRecorder` directly (no canvas) and overlay the webcam with FFmpeg's `overlay` filter at conversion time, recording the webcam to a second WebM. Only do this if measured frame drops appear.
 
-## 4. Bunny Stream integration (verified against Bunny docs, 2026-10-06)
+## 4. AWS S3 + CloudFront integration (verified against AWS docs, 2026-10-06)
 
-Phil creates the account and a **video library** in the Bunny dashboard (Delivery → Stream → Add Video Library). The app needs two values from the library's API tab: **Library ID** and the library's **Stream API key**. These are entered once in the app's Settings screen.
+Plain-English idea: Krec's MP4 already plays in every browser, so nothing needs re-encoding. Krec uploads three files to a private S3 bucket and CloudFront serves them over HTTPS. The link works the moment the upload finishes.
 
-Upload is two HTTP calls, authenticated with header `AccessKey: <stream api key>`:
+One-time setup: Phil runs `scripts/aws-setup.sh` in AWS CloudShell. It creates a private bucket (Block Public Access on), a CloudFront distribution reading it through Origin Access Control (bucket policy limited to that distribution's ARN), and an IAM user that may only `PutObject/GetObject/DeleteObject/AbortMultipartUpload` in the bucket and `CreateInvalidation` on the distribution. It prints one `krec1:<base64 JSON>` setup code (region, bucket, access key, secret, CloudFront domain, distribution ID) that Phil pastes into Settings. Settings tests it end to end (write to S3, read back through CloudFront, delete) before saving; the secret is stored with safeStorage.
 
-```text
-1. POST https://video.bunnycdn.com/library/{libraryId}/videos
-   body: {"title": "Krec 2026-10-06 14-32"}
-   -> returns { guid, ... }
-
-2. PUT  https://video.bunnycdn.com/library/{libraryId}/videos/{guid}
-   body: raw MP4 bytes (not multipart, not base64)
-   -> { "success": true }
-```
-
-Share link to copy:
+Per recording, with a random 128-bit id (unlisted by nature):
 
 ```text
-https://player.mediadelivery.net/play/{libraryId}/{guid}
+v/<id>.mp4   video/mp4                 Cache-Control: immutable, 1 year   (multipart, 8 MB parts)
+v/<id>.jpg   image/jpeg (1280 wide)    Cache-Control: immutable, 1 year
+v/<id>       text/html share page      Cache-Control: 5 minutes           (uploaded last)
 ```
 
-Processing status: `GET /library/{libraryId}/videos/{guid}` returns `status` with these meanings: 0 Created, 1 Uploaded, 2 Processing, 3 Transcoding, 4 Finished, 5 Error, 6 UploadFailed, 7 JitSegmenting, 8 JitPlaylistsCreated. Also `encodeProgress` 0 to 100. Poll every 5 seconds until 4, 5 or 6. The link is copied as soon as step 2 succeeds; the history row shows "Processing…" until status 4, then "Ready".
+Share link: `https://<distribution>.cloudfront.net/v/<id>`. The page has a native `<video>` player and Open Graph tags (`og:title`, `og:image`, `og:video`) so chat apps show title and thumbnail. Slack plays inline only for allowlisted hosts (YouTube, Loom, Vimeo); everyone else, Krec included, gets a title + thumbnail card.
 
-Reliability notes:
-- Plain PUT is fine below 2 GB. A 1080p30 recording is roughly 15 to 25 MB per minute, so even an hour fits. TUS resumable upload is a later upgrade, not v1.
-- Upload must run from the **main process** (Node), streaming the file from disk, so the renderer never holds the whole file in memory. Report progress to the panel.
-- Retry the PUT up to 3 times with backoff on network errors. If it still fails, keep the local file, mark the history row "Upload failed", show a Retry button.
-- Library settings that must stay OFF for plain links to work: "Embed view token authentication" and "Block direct URL file access". Mention this in the Settings screen help text.
+Reliability: SDK retries each request 3 times; Krec retries the whole file up to 3 more times with 2/5/10 s backoff. On failure the local file is kept, the history row is "Upload failed" with a Retry button. Deleting (step 7) removes the three objects and invalidates them in CloudFront.
 
-Cost reference (so nobody over-engineers for cost): storage $0.01 per GB per month, delivery $0.01 per GB in Europe and North America, free standard encoding, $1 monthly minimum. 100 five-minute videos a month each watched 50 times is roughly $5 to $6.
+Cost reference: S3 Standard $0.023 per GB-month; CloudFront's always-free tier covers 1 TB transfer and 10 M requests per month. 100 five-minute videos a month watched 50 times each is roughly $0 to $2 per month.
+
+Known risk: brand-new AWS accounts may need AWS Support to verify the account before CloudFront resources can be created (free "Account and billing" case).
 
 ## 5. User flows
 
@@ -100,8 +89,8 @@ Cost reference (so nobody over-engineers for cost): storage $0.01 per GB per mon
 5. Panel returns to idle. New row at the top of History.
 
 **History**
-- Rows: thumbnail (first frame, grabbed by FFmpeg at conversion time), date-time, duration, status (Processing / Ready / Upload failed), buttons Copy link, Open in browser, Open local file, Retry (only on failure), Delete (local file plus Bunny video; confirm first).
-- Stored in `electron-store` as a list of `{ id, title, localPath, bunnyGuid, shareUrl, status, durationSec, createdAt }`.
+- Rows: thumbnail (first frame, grabbed by FFmpeg at conversion time), date-time, duration, status (Uploading / Ready / Upload failed), buttons Copy link, Open in browser, Open local file, Retry (only on failure), Delete (local file plus the uploaded files; confirm first).
+- Stored in `electron-store` as a list of `{ id, title, localPath, thumbnailPath, width, height, durationSec, createdAt, status, error, remoteId, remoteDomain, shareUrl, uploadedAt }`.
 
 ## 6. Project layout
 
@@ -115,7 +104,9 @@ Krec/
       capture.ts          desktopCapturer sources, display-media handler
       recorder-ipc.ts     receives WebM chunks from renderer, writes to disk
       convert.ts          ffmpeg-static: webm -> mp4, thumbnail extraction
-      bunny.ts            createVideo, uploadVideo (streamed PUT), getStatus, deleteVideo
+      aws.ts              setup-code parsing, S3 upload (multipart), delete, end-to-end test
+      sharepage.ts        HTML share page with Open Graph tags
+      uploads.ts          upload job: retries, history status, link copy
       store.ts            electron-store schema: settings + history
       secrets.ts          safeStorage wrap/unwrap for the API key
       notify.ts           toast + clipboard
@@ -142,12 +133,12 @@ Work in this order. Each step ends with something Phil can click and verify.
 1. **Scaffold**: Electron + TypeScript + Vite (electron-vite or similar), `electron-builder` NSIS config, app icon. `npm run dev` opens an empty always-on-top panel. Commit.
 2. **Source picker + raw recording**: picker lists sources, choose one, record 10 seconds of screen plus mic to a WebM in `Videos\Krec`. Verify the file plays in VLC or Chrome.
 3. **Conversion**: `ffmpeg-static` turns the WebM into MP4 and extracts a thumbnail. Verify the MP4 plays in Windows Media Player and is seekable.
-4. **Bunny upload**: Settings screen (Library ID, API key via safeStorage, validate button). After step 3 finishes, create + PUT, copy link, toast, poll status. Verify the link plays in a private browser window and unfurls in a Discord or Slack message.
+4. **Upload** (done, switched from Bunny to AWS): Settings screen (AWS setup code, mic picker, folder), upload after step 3, copy link, toast. Verify the link plays in a private browser window and unfurls in a Discord or Slack message.
 5. **Countdown, pause/resume, elapsed timer, recording states on the panel.**
 6. **Webcam bubble**: webcam dropdown in Settings, toggle on panel, canvas compositor with circular clip bottom-right at about 220 px diameter with a 3 px white ring. Check CPU usage; apply the FFmpeg-overlay fallback only if frames drop.
 7. **History list** with all actions, retry on failure, delete with confirmation.
 8. **Packaging**: `npm run dist` produces `Krec Setup x.y.z.exe`. Install on Phil's machine, run the full flow once from the installed copy.
-9. **README** for Phil: how to get the Bunny Library ID and key, where files live, what the three library settings must be.
+9. **README** for Phil: how to run the AWS setup script in CloudShell, where files live, how to remove the AWS resources.
 
 ## 8. Acceptance test (what "done" means)
 
@@ -166,7 +157,7 @@ Work in this order. Each step ends with something Phil can click and verify.
 | Canvas compositing at 1080p30 loads the CPU | Measure in step 6. Fallback: FFmpeg overlay at conversion time |
 | Electron display-media API changed between versions | Pin the Electron major version in package.json and read that version's docs before coding `capture.ts` |
 | Long recordings produce a large in-memory WebM in the renderer | Stream `MediaRecorder` chunks to main every 1 second and append to disk; never buffer the whole file |
-| Bunny upload fails mid-way | Retry with backoff; keep local file; Retry button. TUS later if this is ever hit in practice |
+| Upload fails mid-way | Retry with backoff; keep local file; Retry button. multipart parts are retried individually |
 | Windows notification permission or focus assist hides the toast | Clipboard is the primary signal; the panel also shows "Link copied" |
 | Phil's mic or webcam default device is wrong | Device dropdowns in Settings, remembered by device ID, with a fallback to default if the device vanishes |
 
@@ -176,9 +167,10 @@ Global hotkey, tray icon and autostart, system audio capture, drag-to-select reg
 
 ## 11. Sources used while planning
 
-- Bunny Stream HTTP upload: https://bunny.net/docs/stream/http-api
-- Bunny embedding and direct play URL: https://docs.bunny.net/stream/embedding
-- Bunny video specification (input containers and codecs): https://bunny.net/docs/stream/video-specification
-- Bunny Stream pricing: https://docs.bunny.net/stream/pricing
-- Bunny Stream API (OpenAPI): https://docs.bunny.net/docs/api-reference/stream/openapi.json
+- CloudFront Origin Access Control for S3: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-s3.html
+- S3 pricing 2026: https://www.cloudzero.com/blog/s3-pricing/
+- CloudFront always-free tier: https://cloudburn.io/blog/amazon-cloudfront-pricing
+- CloudFront account verification for new accounts: https://repost.aws/questions/QUdTw0Ch8oQKqSOvHC0r_ORg
+- Slack inline video allowlist: https://docs.slack.dev/reference/block-kit/blocks/video-block
+- Why Bunny was dropped (shared encoding queue): https://support.bunny.net/hc/en-us/articles/8533825870236-Troubleshooting-Bunny-Stream-Video-Uploads
 - YouTube API private lock for unaudited projects: https://www.ayrshare.com/solutions/google-api-error-403-unverified-app-how-to-fix-the-audit-pipeline/

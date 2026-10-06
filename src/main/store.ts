@@ -2,11 +2,14 @@ import { join } from 'path'
 import { app } from 'electron'
 import Store from 'electron-store'
 import type { HistoryItem, PublicSettings } from '../shared/types'
+import type { AwsConfig } from './aws'
 import { decryptSecret } from './secrets'
 
+// The AWS setup minus the secret key, which is kept DPAPI-encrypted next to it.
+type StoredAws = Omit<AwsConfig, 'secretAccessKey'> & { secretEncrypted: string }
+
 interface StoredSettings {
-  libraryId: string
-  apiKeyEncrypted: string // base64 DPAPI blob, see secrets.ts
+  aws: StoredAws | null
   micDeviceId: string
   saveDir: string // '' = default
 }
@@ -21,7 +24,7 @@ let store: Store<Schema> | null = null
 function db(): Store<Schema> {
   store ??= new Store<Schema>({
     defaults: {
-      settings: { libraryId: '', apiKeyEncrypted: '', micDeviceId: '', saveDir: '' },
+      settings: { aws: null, micDeviceId: '', saveDir: '' },
       history: []
     }
   })
@@ -43,23 +46,25 @@ export function setSettings(patch: Partial<StoredSettings>): void {
 export function publicSettings(): PublicSettings {
   const s = getSettings()
   return {
-    libraryId: s.libraryId,
-    hasApiKey: s.apiKeyEncrypted !== '',
+    aws: s.aws
+      ? {
+          region: s.aws.region,
+          bucket: s.aws.bucket,
+          cdnDomain: s.aws.cdnDomain,
+          accessKeyHint: s.aws.accessKeyId.slice(-4)
+        }
+      : null,
     micDeviceId: s.micDeviceId,
     saveDir: s.saveDir || defaultRecordingsDir()
   }
 }
 
-export interface BunnyCredentials {
-  libraryId: string
-  apiKey: string
-}
-
-/** Null when the Bunny library is not set up yet. */
-export function getCredentials(): BunnyCredentials | null {
-  const s = getSettings()
-  if (!s.libraryId || !s.apiKeyEncrypted) return null
-  return { libraryId: s.libraryId, apiKey: decryptSecret(s.apiKeyEncrypted) }
+/** Null when AWS is not set up yet. */
+export function getAwsConfig(): AwsConfig | null {
+  const aws = getSettings().aws
+  if (!aws) return null
+  const { secretEncrypted, ...rest } = aws
+  return { ...rest, secretAccessKey: decryptSecret(secretEncrypted) }
 }
 
 export function listHistory(): HistoryItem[] {

@@ -67,6 +67,11 @@ input,
 select {
   height: 32px;
   padding: 0 10px;
+}
+
+input,
+select,
+textarea {
   border: 1px solid var(--bg-hover);
   border-radius: 6px;
   background: var(--bg-raised);
@@ -74,8 +79,17 @@ select {
   font: inherit;
 }
 
+textarea {
+  padding: 8px 10px;
+  resize: vertical;
+  font-family: Consolas, monospace;
+  font-size: 12px;
+  word-break: break-all;
+}
+
 input:focus,
-select:focus {
+select:focus,
+textarea:focus {
   outline: 2px solid var(--red);
   outline-offset: -1px;
 }

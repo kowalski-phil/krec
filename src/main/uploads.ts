@@ -1,20 +1,18 @@
 import { BrowserWindow } from 'electron'
 import { IPC } from '../shared/ipc'
 import type { HistoryItem, UploadUpdate } from '../shared/types'
-import { BunnyError, createVideo, getVideoStatus, playUrl, uploadVideo } from './bunny'
+import { assetUrl, CACHE_SHORT, newVideoId, putFile, putText, shareUrl, StorageError } from './aws'
 import { copyLinkAndNotify, notify } from './notify'
-import { getCredentials, getHistoryItem, listHistory, updateHistoryItem, type BunnyCredentials } from './store'
+import { renderSharePage } from './sharepage'
+import { getAwsConfig, getHistoryItem, listHistory, updateHistoryItem } from './store'
 
 const RETRY_DELAYS_MS = [2_000, 5_000, 10_000] // up to 3 retries after the first try
-const POLL_INTERVAL_MS = 5_000 // also how often the panel's "waiting in queue" line refreshes
-const BUNNY_FINISHED = 4
-const BUNNY_FAILED = [5, 6] // Error, UploadFailed
+const VIDEO_SHARE = 0.95 // the MP4 is ~95% of the bytes; thumbnail and page are the rest
 
 const uploading = new Set<string>()
-const polling = new Map<string, NodeJS.Timeout>()
 
-function broadcast(item: HistoryItem, percent: number | null = null, bunnyStatus: number | null = null): void {
-  const update: UploadUpdate = { item, percent, bunnyStatus }
+function broadcast(item: HistoryItem, percent: number | null = null): void {
+  const update: UploadUpdate = { item, percent }
   for (const win of BrowserWindow.getAllWindows()) win.webContents.send(IPC.uploadUpdate, update)
 }
 
@@ -31,7 +29,7 @@ async function withRetries<T>(task: () => Promise<T>): Promise<T> {
     try {
       return await task()
     } catch (err) {
-      const retryable = err instanceof BunnyError && err.retryable
+      const retryable = err instanceof StorageError && err.retryable
       if (!retryable || attempt >= RETRY_DELAYS_MS.length) throw err
       console.warn(`[upload] attempt ${attempt + 1} failed, retrying:`, (err as Error).message)
       await sleep(RETRY_DELAYS_MS[attempt])
@@ -39,41 +37,56 @@ async function withRetries<T>(task: () => Promise<T>): Promise<T> {
   }
 }
 
-/** Uploads a history item to Bunny. Safe to call again for a retry; never throws. */
+/**
+ * Uploads video, thumbnail and share page, then copies the link. The page goes last, so
+ * the link only works once everything it needs is there. Safe to call again for a retry;
+ * never throws.
+ */
 export async function startUpload(id: string): Promise<void> {
   if (uploading.has(id)) return
-  const creds = getCredentials()
+  const cfg = getAwsConfig()
   let item = getHistoryItem(id)
   if (!item) return
-  if (!creds) {
+  if (!cfg) {
     update(id, { status: 'local', error: null })
     return
   }
 
   uploading.add(id)
   try {
-    // A retry after a failed PUT reuses the video Bunny already created, if it is the same library.
-    let guid = item.libraryId === creds.libraryId ? item.bunnyGuid : null
-    item = update(id, { status: 'uploading', error: null, libraryId: creds.libraryId, bunnyGuid: guid })
+    // A retry keeps the same id, so a link handed out earlier would still become valid.
+    const remoteId = item.remoteId && item.remoteDomain === cfg.cdnDomain ? item.remoteId : newVideoId()
+    item = update(id, { status: 'uploading', error: null, remoteId, remoteDomain: cfg.cdnDomain })
     broadcast(item, 0)
 
-    if (!guid) {
-      guid = await withRetries(() => createVideo(creds, item!.title))
-      item = update(id, { bunnyGuid: guid })
-    }
+    const videoKey = `v/${remoteId}.mp4`
+    const thumbKey = `v/${remoteId}.jpg`
+    const pageKey = `v/${remoteId}`
 
     let lastPercent = 0
     await withRetries(() =>
-      uploadVideo(creds, guid!, item!.localPath, (fraction) => {
-        const percent = Math.floor(fraction * 100)
+      putFile(cfg, videoKey, item!.localPath, 'video/mp4', (fraction) => {
+        const percent = Math.floor(fraction * VIDEO_SHARE * 100)
         if (percent !== lastPercent) broadcast(item!, (lastPercent = percent))
       })
     )
+    await withRetries(() => putFile(cfg, thumbKey, item!.thumbnailPath, 'image/jpeg'))
 
-    // The link is only copied once Bunny has finished processing; until then it shows a "processing" page.
-    const shareUrl = playUrl(creds.libraryId, guid)
-    item = update(id, { status: 'processing', shareUrl, uploadedAt: new Date().toISOString() })
-    pollUntilProcessed(id, creds)
+    const url = shareUrl(cfg, remoteId)
+    const page = renderSharePage({
+      title: item.title,
+      pageUrl: url,
+      videoUrl: assetUrl(cfg, videoKey),
+      thumbnailUrl: assetUrl(cfg, thumbKey),
+      width: item.width,
+      height: item.height,
+      durationSec: item.durationSec,
+      createdAt: new Date(item.createdAt)
+    })
+    await withRetries(() => putText(cfg, pageKey, page, 'text/html; charset=utf-8', CACHE_SHORT))
+
+    item = update(id, { status: 'ready', shareUrl: url, uploadedAt: new Date().toISOString() })
+    copyLinkAndNotify(url, item.title)
   } catch (err) {
     console.error('[upload] failed:', err)
     update(id, { status: 'failed', error: (err as Error).message })
@@ -83,52 +96,11 @@ export async function startUpload(id: string): Promise<void> {
   }
 }
 
-function pollUntilProcessed(id: string, creds: BunnyCredentials): void {
-  if (polling.has(id)) return
-  let lastSeen = ''
-  const tick = async (): Promise<void> => {
-    const item = getHistoryItem(id)
-    if (!item?.bunnyGuid || item.status !== 'processing') return void polling.delete(id)
-    try {
-      const { status, encodeProgress } = await getVideoStatus(creds, item.bunnyGuid)
-      const seen = `status ${status}, encode ${encodeProgress}%`
-      if (seen !== lastSeen) console.log(`[upload] ${item.title}: Bunny ${(lastSeen = seen)}`)
-      if (status === BUNNY_FINISHED) {
-        const ready = update(id, { status: 'ready' })
-        if (ready.shareUrl) copyLinkAndNotify(ready.shareUrl, ready.title)
-        return void polling.delete(id)
-      }
-      if (BUNNY_FAILED.includes(status)) {
-        update(id, { status: 'error', error: `Bunny could not process the video (status ${status}).` })
-        notify('Bunny could not process the video', 'The video is still saved on this PC.')
-        return void polling.delete(id)
-      }
-      broadcast(item, encodeProgress, status)
-    } catch (err) {
-      // Network hiccup or similar: keep polling, the video is already uploaded.
-      console.warn('[upload] status check failed:', (err as Error).message)
-    }
-    polling.set(id, setTimeout(tick, POLL_INTERVAL_MS))
-  }
-  polling.set(id, setTimeout(tick, POLL_INTERVAL_MS))
-}
-
-/**
- * On app start: uploads interrupted by quitting become retryable failures, and videos
- * still processing on Bunny are polled again.
- */
+/** On app start: uploads interrupted by quitting become retryable failures. */
 export function resumeUploads(): void {
-  const creds = getCredentials()
   for (const item of listHistory()) {
     if (item.status === 'uploading') {
       updateHistoryItem(item.id, { status: 'failed', error: 'Krec was closed during the upload.' })
-    } else if (item.status === 'processing' && creds && item.libraryId === creds.libraryId) {
-      pollUntilProcessed(item.id, creds)
     }
   }
-}
-
-export function stopPolling(): void {
-  for (const timer of polling.values()) clearTimeout(timer)
-  polling.clear()
 }

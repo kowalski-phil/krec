@@ -7,8 +7,8 @@ function byId<T extends HTMLElement>(id: string): T {
   return el as T
 }
 
-const libraryId = byId<HTMLInputElement>('library-id')
-const apiKey = byId<HTMLInputElement>('api-key')
+const awsCode = byId<HTMLTextAreaElement>('aws-code')
+const awsStatus = byId('aws-status')
 const testResult = byId('test-result')
 const mic = byId<HTMLSelectElement>('mic')
 const micNote = byId('mic-note')
@@ -89,8 +89,13 @@ async function startMeter(): Promise<void> {
 
 async function load(): Promise<void> {
   const s = await window.krec.getSettings()
-  libraryId.value = s.libraryId
-  apiKey.placeholder = s.hasApiKey ? 'Saved. Leave empty to keep it.' : 'Paste the API key'
+  if (s.aws) {
+    awsStatus.textContent = `Connected: bucket ${s.aws.bucket} (${s.aws.region}), links on ${s.aws.cdnDomain}, access key …${s.aws.accessKeyHint}.`
+    awsCode.placeholder = 'Paste a new setup code only to replace the current one.'
+  } else {
+    awsStatus.textContent = 'Not set up yet. Recordings stay on this PC until it is.'
+    awsCode.placeholder = 'krec1:…'
+  }
   saveDir.textContent = s.saveDir
   savedMicId = s.micDeviceId
 
@@ -108,7 +113,7 @@ testBtn.addEventListener('click', async () => {
   testBtn.disabled = true
   showResult(testResult, { ok: true, message: 'Testing…' })
   testResult.className = 'result'
-  const result = await window.krec.validateBunny(libraryId.value, apiKey.value.trim() || null)
+  const result = await window.krec.validateAws(awsCode.value.trim() || null)
   showResult(testResult, result)
   testBtn.disabled = false
 })
@@ -118,8 +123,7 @@ saveBtn.addEventListener('click', async () => {
   saveResult.textContent = 'Saving…'
   saveResult.className = 'result'
   const result = await window.krec.saveSettings({
-    libraryId: libraryId.value,
-    apiKey: apiKey.value.trim() || null,
+    awsSetupCode: awsCode.value.trim() || null,
     micDeviceId: mic.value,
     saveDir: saveDir.textContent ?? ''
   })

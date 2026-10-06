@@ -14,27 +14,20 @@
       <h1>Settings</h1>
 
       <section>
-        <h2>Bunny Stream</h2>
+        <h2>AWS upload</h2>
+        <p id="aws-status" class="help"></p>
+        <label class="field">
+          <span>Setup code</span>
+          <textarea id="aws-code" rows="3" autocomplete="off" spellcheck="false"></textarea>
+        </label>
         <p class="help">
-          In the Bunny dashboard, open your video library under <b>Stream</b> and go to its <b>API</b> tab.
-          Copy the <b>Library ID</b> and the <b>API Key</b> from there.
+          Run <b>scripts/aws-setup.sh</b> once in AWS CloudShell. It prints one line starting with
+          <b>krec1:</b>. Paste that line here.
         </p>
-        <label class="field">
-          <span>Library ID</span>
-          <input id="library-id" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" placeholder="e.g. 123456" />
-        </label>
-        <label class="field">
-          <span>API key</span>
-          <input id="api-key" type="password" autocomplete="off" spellcheck="false" />
-        </label>
         <div class="row">
           <button id="btn-test" class="btn">Test connection</button>
           <span id="test-result" class="result"></span>
         </div>
-        <p class="help">
-          For share links to play for everyone, keep these two library settings <b>off</b>:
-          “Embed view token authentication” and “Block direct URL file access”.
-        </p>
       </section>
 
       <section>

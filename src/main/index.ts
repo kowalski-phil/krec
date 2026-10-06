@@ -6,7 +6,7 @@ import { killConversions } from './convert'
 import { registerRecorderIpc } from './recorder-ipc'
 import { registerSettingsIpc } from './settings-ipc'
 import { getSettings } from './store'
-import { resumeUploads, startUpload, stopPolling } from './uploads'
+import { resumeUploads, startUpload } from './uploads'
 
 const PANEL_WIDTH = 300
 const PANEL_HEIGHT = 108
@@ -126,13 +126,10 @@ if (!app.requestSingleInstanceLock()) {
 
     panel = createPanel()
     resumeUploads()
-    // First run: nothing to upload to yet, so ask for the Bunny library straight away.
-    if (!getSettings().libraryId) openSettings()
+    // First run: nothing to upload to yet, so ask for the AWS setup straight away.
+    if (!getSettings().aws) openSettings()
   })
 
   app.on('window-all-closed', () => app.quit())
-  app.on('will-quit', () => {
-    killConversions()
-    stopPolling()
-  })
+  app.on('will-quit', killConversions)
 }

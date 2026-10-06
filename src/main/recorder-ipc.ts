@@ -6,7 +6,7 @@ import { BrowserWindow, ipcMain } from 'electron'
 import { IPC } from '../shared/ipc'
 import type { RecordingInfo, RecordingResult } from '../shared/types'
 import { convertRecording } from './convert'
-import { addHistoryItem, getCredentials, publicSettings } from './store'
+import { addHistoryItem, getAwsConfig, publicSettings } from './store'
 import { startUpload } from './uploads'
 
 let current: { file: WriteStream; path: string; window: BrowserWindow | null } | null = null
@@ -63,15 +63,18 @@ export function registerRecorderIpc(): void {
       title: basename(converted.mp4Path, extname(converted.mp4Path)),
       localPath: converted.mp4Path,
       thumbnailPath: converted.thumbnailPath,
-      libraryId: null,
-      bunnyGuid: null,
-      shareUrl: null,
+      width: converted.width,
+      height: converted.height,
+      durationSec: converted.durationSec,
+      createdAt: new Date().toISOString(),
       status: 'local',
       error: null,
-      durationSec: converted.durationSec,
-      createdAt: new Date().toISOString()
+      remoteId: null,
+      remoteDomain: null,
+      shareUrl: null,
+      uploadedAt: null
     })
-    const willUpload = getCredentials() !== null
+    const willUpload = getAwsConfig() !== null
     // Start after this reply is sent, so the panel knows the id before progress arrives.
     setImmediate(() => void startUpload(id))
 

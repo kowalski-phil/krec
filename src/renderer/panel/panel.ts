@@ -37,45 +37,22 @@ function setState(next: PanelState, status = ''): void {
   setStatus(status)
 }
 
-// Bunny status 3 = transcoding; below that the video is still queued.
-const BUNNY_TRANSCODING = 3
-
-function minutesSince(iso: string | null | undefined): number {
-  return iso ? Math.floor((Date.now() - Date.parse(iso)) / 60_000) : 0
-}
-
-function showUpload(item: HistoryItem, percent: number | null, bunnyStatus: number | null): void {
-  const copy = (label: string): { label: string; run: () => void } => ({
-    label,
-    run: () => item.shareUrl && window.krec.copyText(item.shareUrl)
-  })
+function showUpload(item: HistoryItem, percent: number | null): void {
   const showFile = { label: 'Show file', run: () => window.krec.showFile(item.localPath) }
   switch (item.status) {
     case 'uploading':
       return setStatus(percent === null ? 'Uploading…' : `Uploading… ${percent}%`)
-    case 'processing': {
-      const encoding = (bunnyStatus ?? 0) >= BUNNY_TRANSCODING || (percent ?? 0) > 0
-      const mins = minutesSince(item.uploadedAt ?? item.createdAt)
-      const text = encoding
-        ? `Bunny encoding… ${percent ?? 0}%`
-        : `In Bunny's queue${mins >= 1 ? ` · ${mins} min` : '…'}`
-      return setStatus(text, copy('Copy link now'), 'Krec copies the link and notifies you when Bunny is done.')
-    }
     case 'ready':
-      return setStatus('Ready ✓ Link copied', copy('Copy again'))
+      return setStatus('Link copied ✓', { label: 'Copy again', run: () => item.shareUrl && window.krec.copyText(item.shareUrl) })
     case 'failed':
       return setStatus('Upload failed.', { label: 'Retry', run: () => window.krec.retryUpload(item.id) }, item.error ?? '')
-    case 'error':
-      return setStatus('Bunny could not process it.', showFile, item.error ?? '')
     case 'local':
-      return setStatus('Saved locally (Bunny not set up).', showFile)
+      return setStatus('Saved locally (AWS not set up).', showFile)
   }
 }
 
-window.krec.onUploadUpdate(({ item, percent, bunnyStatus }: UploadUpdate) => {
-  // After a restart, follow whichever video is still uploading or processing.
-  lastItemId ??= item.id
-  if (item.id === lastItemId && state === 'idle') showUpload(item, percent, bunnyStatus)
+window.krec.onUploadUpdate(({ item, percent }: UploadUpdate) => {
+  if (item.id === lastItemId && state === 'idle') showUpload(item, percent)
 })
 
 async function record(): Promise<void> {
@@ -114,7 +91,7 @@ async function stop(): Promise<void> {
     lastItemId = result.historyId
     setState('idle', result.willUpload ? 'Uploading…' : '')
     if (!result.willUpload) {
-      setStatus('Saved locally (Bunny not set up).', {
+      setStatus('Saved locally (AWS not set up).', {
         label: 'Show file',
         run: () => window.krec.showFile(result.path)
       })

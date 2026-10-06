@@ -1,50 +1,47 @@
 import { BrowserWindow, dialog, ipcMain } from 'electron'
 import { IPC } from '../shared/ipc'
 import type { SettingsUpdate, ValidationResult } from '../shared/types'
-import { BunnyError, validateCredentials } from './bunny'
+import { parseSetupCode, testConnection, type AwsConfig } from './aws'
 import { encryptSecret } from './secrets'
-import { defaultRecordingsDir, getCredentials, getSettings, publicSettings, setSettings } from './store'
+import { defaultRecordingsDir, getAwsConfig, publicSettings, setSettings } from './store'
 
-const LIBRARY_ID = /^\d+$/
-
-async function check(libraryId: string, apiKey: string | null): Promise<ValidationResult> {
-  if (!LIBRARY_ID.test(libraryId)) return { ok: false, message: 'The Library ID is a number, like 123456.' }
-  const key = apiKey ?? getCredentials()?.apiKey
-  if (!key) return { ok: false, message: 'Enter the API key.' }
+async function check(cfg: AwsConfig): Promise<ValidationResult> {
   try {
-    await validateCredentials({ libraryId, apiKey: key })
-    return { ok: true, message: 'Connected to your Bunny library.' }
+    await testConnection(cfg)
+    return { ok: true, message: `Connected. Links will look like https://${cfg.cdnDomain}/v/…` }
   } catch (err) {
-    const message = err instanceof BunnyError ? err.message : String(err)
-    return { ok: false, message }
+    return { ok: false, message: (err as Error).message }
   }
+}
+
+/** A null code tests the stored setup. */
+async function validate(code: string | null): Promise<ValidationResult> {
+  let cfg: AwsConfig | null
+  try {
+    cfg = code ? parseSetupCode(code) : getAwsConfig()
+  } catch (err) {
+    return { ok: false, message: (err as Error).message }
+  }
+  if (!cfg) return { ok: false, message: 'Paste the setup code first.' }
+  return check(cfg)
 }
 
 export function registerSettingsIpc(openSettings: () => void): void {
   ipcMain.on(IPC.settingsOpen, () => openSettings())
   ipcMain.on(IPC.settingsClose, (event) => BrowserWindow.fromWebContents(event.sender)?.close())
   ipcMain.handle(IPC.settingsGet, () => publicSettings())
-
-  ipcMain.handle(IPC.settingsValidate, (_event, libraryId: string, apiKey: string | null) =>
-    check(libraryId.trim(), apiKey?.trim() || null)
-  )
+  ipcMain.handle(IPC.settingsValidate, (_event, code: string | null) => validate(code?.trim() || null))
 
   ipcMain.handle(IPC.settingsSave, async (_event, update: SettingsUpdate): Promise<ValidationResult> => {
-    const libraryId = update.libraryId.trim()
-    const apiKey = update.apiKey === null ? null : update.apiKey.trim()
-    const stored = getSettings()
-    const removingBunny = libraryId === '' && (apiKey === '' || apiKey === null)
-
-    // Only talk to Bunny when its details changed; a wrong key is refused, not saved.
-    const bunnyChanged = libraryId !== stored.libraryId || (apiKey !== null && apiKey !== '')
-    if (!removingBunny && bunnyChanged) {
-      const result = await check(libraryId, apiKey || null)
+    const code = update.awsSetupCode?.trim() || null
+    if (code) {
+      // A new setup code is tested end to end first; a broken one is refused, not saved.
+      const result = await validate(code)
       if (!result.ok) return result
+      const { secretAccessKey, ...rest } = parseSetupCode(code)
+      setSettings({ aws: { ...rest, secretEncrypted: encryptSecret(secretAccessKey) } })
     }
-
     setSettings({
-      libraryId,
-      apiKeyEncrypted: removingBunny || apiKey === '' ? '' : apiKey ? encryptSecret(apiKey) : stored.apiKeyEncrypted,
       micDeviceId: update.micDeviceId,
       saveDir: update.saveDir === defaultRecordingsDir() ? '' : update.saveDir
     })

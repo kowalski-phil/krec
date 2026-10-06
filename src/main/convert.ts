@@ -6,7 +6,8 @@ import ffmpegStatic from 'ffmpeg-static'
 
 const MAX_WIDTH = 1920
 const FRAME_RATE = 30
-const THUMBNAIL_WIDTH = 640
+// Chat apps show large preview cards; 1280 px keeps them sharp.
+const THUMBNAIL_WIDTH = 1280
 
 const running = new Set<ChildProcess>()
 
@@ -59,6 +60,8 @@ export interface ConvertResult {
   mp4Path: string
   thumbnailPath: string
   durationSec: number
+  width: number
+  height: number
 }
 
 /**
@@ -108,7 +111,7 @@ export async function convertRecording(webmPath: string): Promise<ConvertResult>
     thumbnailPath
   ])
 
-  return { mp4Path, thumbnailPath, durationSec }
+  return { mp4Path, thumbnailPath, durationSec, width, height }
 }
 
 /** Kills any conversion still running, so no FFmpeg process outlives the app. */

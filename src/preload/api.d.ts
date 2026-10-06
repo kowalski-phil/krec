@@ -29,8 +29,8 @@ export interface KrecApi {
   closeSettings(): void
   getSettings(): Promise<PublicSettings>
   saveSettings(update: SettingsUpdate): Promise<ValidationResult>
-  /** Tests the Bunny details. A null key means "use the stored key". */
-  validateBunny(libraryId: string, apiKey: string | null): Promise<ValidationResult>
+  /** Tests an AWS setup code end to end. A null code tests the stored setup. */
+  validateAws(setupCode: string | null): Promise<ValidationResult>
   chooseFolder(): Promise<string | null>
 
   /** Subscribes to upload progress and status changes. Returns an unsubscribe function. */
