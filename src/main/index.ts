@@ -1,9 +1,12 @@
 import { join } from 'path'
-import { app, BrowserWindow, ipcMain, screen, shell } from 'electron'
+import { app, BrowserWindow, clipboard, ipcMain, screen, shell } from 'electron'
 import { IPC } from '../shared/ipc'
 import { registerCapture } from './capture'
 import { killConversions } from './convert'
 import { registerRecorderIpc } from './recorder-ipc'
+import { registerSettingsIpc } from './settings-ipc'
+import { getSettings } from './store'
+import { resumeUploads, startUpload, stopPolling } from './uploads'
 
 const PANEL_WIDTH = 300
 const PANEL_HEIGHT = 108
@@ -11,6 +14,7 @@ const SCREEN_MARGIN = 24
 const BACKGROUND = '#1c1c1f'
 
 let panel: BrowserWindow | null = null
+let settings: BrowserWindow | null = null
 
 const appIcon = (): string => join(app.getAppPath(), 'assets', 'icon.png')
 
@@ -76,6 +80,28 @@ function createPicker(): BrowserWindow {
   return win
 }
 
+function openSettings(): void {
+  if (settings) return settings.focus()
+  settings = new BrowserWindow({
+    width: 560,
+    height: 720,
+    minWidth: 460,
+    minHeight: 480,
+    title: 'Krec Settings',
+    icon: appIcon(),
+    autoHideMenuBar: true,
+    alwaysOnTop: true,
+    show: false,
+    backgroundColor: BACKGROUND,
+    webPreferences: secureWebPreferences()
+  })
+  settings.once('ready-to-show', () => settings?.show())
+  settings.on('closed', () => {
+    settings = null
+  })
+  loadRenderer(settings, 'settings')
+}
+
 if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
@@ -91,12 +117,22 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.on(IPC.panelClose, () => app.quit())
     ipcMain.on(IPC.panelMinimize, () => panel?.minimize())
     ipcMain.on(IPC.showFile, (_event, path: string) => shell.showItemInFolder(path))
+    ipcMain.on(IPC.openPath, (_event, path: string) => void shell.openPath(path))
+    ipcMain.on(IPC.copyText, (_event, text: string) => clipboard.writeText(text))
+    ipcMain.on(IPC.uploadRetry, (_event, id: string) => void startUpload(id))
     registerCapture(createPicker)
     registerRecorderIpc()
+    registerSettingsIpc(openSettings)
 
     panel = createPanel()
+    resumeUploads()
+    // First run: nothing to upload to yet, so ask for the Bunny library straight away.
+    if (!getSettings().libraryId) openSettings()
   })
 
   app.on('window-all-closed', () => app.quit())
-  app.on('will-quit', killConversions)
+  app.on('will-quit', () => {
+    killConversions()
+    stopPolling()
+  })
 }

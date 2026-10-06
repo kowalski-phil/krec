@@ -18,9 +18,18 @@ export interface Recording {
   mic: MediaStreamTrack | null
 }
 
+/** The mic chosen in Settings, or the Windows default if none is set or it is unplugged. */
 async function openMicrophone(): Promise<MediaStream | null> {
+  const { micDeviceId } = await window.krec.getSettings()
+  if (micDeviceId) {
+    try {
+      return await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: micDeviceId } } })
+    } catch (err) {
+      console.warn('Chosen microphone unavailable, falling back to the Windows default', err)
+    }
+  }
   try {
-    return await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+    return await navigator.mediaDevices.getUserMedia({ audio: true })
   } catch (err) {
     console.warn('Microphone unavailable, recording without audio', err)
     return null

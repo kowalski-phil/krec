@@ -1,16 +1,15 @@
+import { randomUUID } from 'crypto'
 import { createWriteStream, mkdirSync, type WriteStream } from 'fs'
 import { rm } from 'fs/promises'
-import { join } from 'path'
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { basename, extname, join } from 'path'
+import { BrowserWindow, ipcMain } from 'electron'
 import { IPC } from '../shared/ipc'
 import type { RecordingInfo, RecordingResult } from '../shared/types'
 import { convertRecording } from './convert'
+import { addHistoryItem, getCredentials, publicSettings } from './store'
+import { startUpload } from './uploads'
 
 let current: { file: WriteStream; path: string; window: BrowserWindow | null } | null = null
-
-export function recordingsDir(): string {
-  return join(app.getPath('videos'), 'Krec')
-}
 
 // "Krec 2026-10-06 14-32-05" in local time.
 function recordingName(date = new Date()): string {
@@ -23,7 +22,7 @@ function recordingName(date = new Date()): string {
 export function registerRecorderIpc(): void {
   ipcMain.handle(IPC.recordingBegin, (event, info: RecordingInfo) => {
     if (current) throw new Error('A recording is already in progress')
-    const dir = recordingsDir()
+    const dir = publicSettings().saveDir
     mkdirSync(dir, { recursive: true })
     const path = join(dir, `${recordingName()}.webm`)
     const file = createWriteStream(path)
@@ -41,7 +40,7 @@ export function registerRecorderIpc(): void {
     current?.file.write(Buffer.from(data))
   })
 
-  ipcMain.handle(IPC.recordingEnd, async () => {
+  ipcMain.handle(IPC.recordingEnd, async (): Promise<RecordingResult> => {
     if (!current) throw new Error('No recording in progress')
     const { file, path, window } = current
     current = null
@@ -57,11 +56,25 @@ export function registerRecorderIpc(): void {
     // The MP4 is the keeper; the WebM is only kept if conversion fails (it throws above).
     await rm(path, { force: true })
     console.log('[recorder] converted', converted)
-    const result: RecordingResult = {
-      path: converted.mp4Path,
+
+    const id = randomUUID()
+    addHistoryItem({
+      id,
+      title: basename(converted.mp4Path, extname(converted.mp4Path)),
+      localPath: converted.mp4Path,
       thumbnailPath: converted.thumbnailPath,
-      durationSec: converted.durationSec
-    }
-    return result
+      libraryId: null,
+      bunnyGuid: null,
+      shareUrl: null,
+      status: 'local',
+      error: null,
+      durationSec: converted.durationSec,
+      createdAt: new Date().toISOString()
+    })
+    const willUpload = getCredentials() !== null
+    // Start after this reply is sent, so the panel knows the id before progress arrives.
+    setImmediate(() => void startUpload(id))
+
+    return { historyId: id, path: converted.mp4Path, durationSec: converted.durationSec, willUpload }
   })
 }

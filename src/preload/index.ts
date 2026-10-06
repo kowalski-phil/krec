@@ -1,5 +1,6 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import { IPC } from '../shared/ipc'
+import type { UploadUpdate } from '../shared/types'
 import type { KrecApi } from './api'
 
 const api: KrecApi = {
@@ -14,7 +15,23 @@ const api: KrecApi = {
   recordingChunk: (data) => ipcRenderer.send(IPC.recordingChunk, data),
   recordingEnd: () => ipcRenderer.invoke(IPC.recordingEnd),
 
-  showFile: (path) => ipcRenderer.send(IPC.showFile, path)
+  openSettings: () => ipcRenderer.send(IPC.settingsOpen),
+  closeSettings: () => ipcRenderer.send(IPC.settingsClose),
+  getSettings: () => ipcRenderer.invoke(IPC.settingsGet),
+  saveSettings: (update) => ipcRenderer.invoke(IPC.settingsSave, update),
+  validateBunny: (libraryId, apiKey) => ipcRenderer.invoke(IPC.settingsValidate, libraryId, apiKey),
+  chooseFolder: () => ipcRenderer.invoke(IPC.settingsChooseFolder),
+
+  onUploadUpdate: (callback) => {
+    const listener = (_event: IpcRendererEvent, update: UploadUpdate): void => callback(update)
+    ipcRenderer.on(IPC.uploadUpdate, listener)
+    return () => ipcRenderer.off(IPC.uploadUpdate, listener)
+  },
+  retryUpload: (historyId) => ipcRenderer.send(IPC.uploadRetry, historyId),
+
+  showFile: (path) => ipcRenderer.send(IPC.showFile, path),
+  openPath: (path) => ipcRenderer.send(IPC.openPath, path),
+  copyText: (text) => ipcRenderer.send(IPC.copyText, text)
 }
 
 contextBridge.exposeInMainWorld('krec', api)

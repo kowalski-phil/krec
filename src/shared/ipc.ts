@@ -11,5 +11,17 @@ export const IPC = {
   recordingChunk: 'recording:chunk',
   recordingEnd: 'recording:end',
 
-  showFile: 'file:show'
+  settingsOpen: 'settings:open',
+  settingsGet: 'settings:get',
+  settingsSave: 'settings:save',
+  settingsValidate: 'settings:validate',
+  settingsChooseFolder: 'settings:choose-folder',
+  settingsClose: 'settings:close',
+
+  uploadUpdate: 'upload:update', // main -> renderer
+  uploadRetry: 'upload:retry',
+
+  showFile: 'file:show',
+  openPath: 'file:open-path',
+  copyText: 'clipboard:copy'
 } as const

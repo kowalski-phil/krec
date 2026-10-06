@@ -19,6 +19,7 @@ A small always-on-top floating panel on Windows 11. Phil clicks **Record**, pick
 | Audio | Microphone only. No system audio in v1 |
 | Webcam | Toggle on the panel. Round bubble, bottom-right, fixed size, baked into the video |
 | After Stop | Auto-upload immediately. No title prompt, no preview. Link copied to clipboard. Windows toast when done |
+| Link timing (changed by Phil, 2026-10-06) | Bunny's free encoding queue can take many minutes. The link is copied and the toast shown only once Bunny reports status 4 (Finished). Until then the panel shows "In Bunny's queue · N min" / "Bunny encoding… N%" with a "Copy link now" button |
 | Clipboard content | Only the share URL, nothing else |
 | Video host | **Bunny Stream**. YouTube rejected: its API forces uploads from unaudited projects to private |
 | Quality | 1080p at 30 fps |
