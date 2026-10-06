@@ -158,7 +158,7 @@ if (!app.requestSingleInstanceLock()) {
     registerCapture(createPicker)
     registerRecorderIpc()
     registerSettingsIpc(openSettings)
-    registerHistoryIpc(openHistory)
+    registerHistoryIpc(openHistory, appIcon)
 
     panel = createPanel()
     resumeUploads()

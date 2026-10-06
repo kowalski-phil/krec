@@ -65,6 +65,13 @@ function row(item: HistoryItem): HTMLElement {
   thumb.alt = ''
   thumb.loading = 'lazy'
   thumb.src = `krec-thumb://${item.id}`
+  // Dragging the thumbnail drags the MP4 itself, e.g. into a Skool post to upload it there.
+  thumb.draggable = true
+  thumb.title = 'Drag into a Skool post, a chat or a folder'
+  thumb.addEventListener('dragstart', (event) => {
+    event.preventDefault()
+    window.krec.startFileDrag(item.id)
+  })
 
   const info = document.createElement('div')
   info.className = 'info'
@@ -96,7 +103,15 @@ function row(item: HistoryItem): HTMLElement {
   if ((item.status === 'failed' || item.status === 'local') && settings?.aws) {
     actions.append(button(item.status === 'failed' ? 'Retry' : 'Upload', () => window.krec.retryUpload(item.id), 'btn btn-primary'))
   }
-  actions.append(button('Show file', () => window.krec.showFile(item.localPath)))
+  actions.append(
+    button('Copy video file', async (btn) => {
+      const result = await window.krec.copyVideoFile(item.id)
+      if (!result.ok) return showMessage(result.message, true)
+      btn.textContent = 'Copied ✓ Paste with Ctrl+V'
+      setTimeout(() => (btn.textContent = 'Copy video file'), 2500)
+    }),
+    button('Show file', () => window.krec.showFile(item.localPath))
+  )
   const del = button(
     'Delete',
     async (btn) => {

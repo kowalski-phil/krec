@@ -163,7 +163,7 @@ Work in this order. Each step ends with something Phil can click and verify.
 
 ## 10. Later ideas (explicitly out of scope now)
 
-Global hotkey, tray icon and autostart, system audio capture, drag-to-select region, trim before upload, title prompt, cursor highlight and click effects, drawing tools, TUS resumable uploads, a second host such as YouTube behind the same uploader interface.
+Per-recording choice of "local only" vs "local + AWS" (Phil, 2026-10-06): videos posted to Skool are uploaded there as MP4, so their S3 copy may be unnecessary. Only worth building if the S3 bill for such videos becomes noticeable; a few cents a month is fine. Global hotkey, tray icon and autostart, system audio capture, drag-to-select region, trim before upload, title prompt, cursor highlight and click effects, drawing tools, TUS resumable uploads, a second host such as YouTube behind the same uploader interface.
 
 ## 11. Sources used while planning
 

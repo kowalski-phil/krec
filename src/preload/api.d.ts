@@ -54,6 +54,10 @@ export interface KrecApi {
   openPath(path: string): void
   /** Opens an https link in the default browser. */
   openExternal(url: string): void
+  /** Starts an OS drag of a recording's MP4 (call from a dragstart handler). */
+  startFileDrag(historyId: string): void
+  /** Puts a recording's MP4 on the clipboard as a file, ready to paste into a web page. */
+  copyVideoFile(historyId: string): Promise<ValidationResult>
   copyText(text: string): void
 }
 

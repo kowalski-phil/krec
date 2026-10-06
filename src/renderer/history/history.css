@@ -143,3 +143,17 @@ h1 {
   background: #5a2224;
   color: #ffb3b4;
 }
+
+.tip {
+  margin: -4px 20px 10px;
+  color: var(--text-dim);
+}
+
+.tip b {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.thumb {
+  cursor: grab;
+}

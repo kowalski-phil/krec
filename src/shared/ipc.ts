@@ -31,5 +31,7 @@ export const IPC = {
   showFile: 'file:show',
   openPath: 'file:open-path',
   openExternal: 'link:open',
+  fileStartDrag: 'file:start-drag',
+  fileCopy: 'file:copy-to-clipboard',
   copyText: 'clipboard:copy'
 } as const

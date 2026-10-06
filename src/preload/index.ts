@@ -43,6 +43,8 @@ const api: KrecApi = {
   showFile: (path) => ipcRenderer.send(IPC.showFile, path),
   openPath: (path) => ipcRenderer.send(IPC.openPath, path),
   openExternal: (url) => ipcRenderer.send(IPC.openExternal, url),
+  startFileDrag: (historyId) => ipcRenderer.send(IPC.fileStartDrag, historyId),
+  copyVideoFile: (historyId) => ipcRenderer.invoke(IPC.fileCopy, historyId),
   copyText: (text) => ipcRenderer.send(IPC.copyText, text)
 }
 
